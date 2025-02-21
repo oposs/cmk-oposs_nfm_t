@@ -1,0 +1,372 @@
+{
+	"reqCompletionStatus": 0,
+	"requestId": 0,
+	"clientName": null,
+	"clientLocation": null,
+	"clientUser": null,
+	"sessionId": "",
+	"mdcId": null,
+	"sequenceNum": 0,
+	"moreToCome": false,
+	"messages": [],
+	"errcde": null,
+	"errorParams": null,
+	"Nadstring": null,
+	"nextTasks": null,
+	"items": [{
+		"guiLabel": "A11-03-DCI-ADM-100",
+		"className": "node",
+		"id": "184",
+		"neVersion": "R23.12",
+		"key": "node/184",
+		"productName": "1830PSS_32"
+	},
+	{
+		"guiLabel": "A11-03-DCI-WDM-100",
+		"className": "node",
+		"id": "183",
+		"neVersion": "R23.12",
+		"key": "node/183",
+		"productName": "1830PSS_32"
+	},
+	{
+		"guiLabel": "F02-U1-DCI-ADM-100",
+		"className": "node",
+		"id": "186",
+		"neVersion": "R23.12",
+		"key": "node/186",
+		"productName": "1830PSS_32"
+	},
+	{
+		"guiLabel": "F02-U1-DCI-WDM-100",
+		"className": "node",
+		"id": "185",
+		"neVersion": "R23.12",
+		"key": "node/185",
+		"productName": "1830PSS_32"
+	},
+	{
+		"guiLabel": "GLB-RZ-DCI-ADM-225",
+		"className": "node",
+		"id": "244",
+		"neVersion": "R2.1",
+		"key": "node/244",
+		"productName": "Wavelite"
+	},
+	{
+		"guiLabel": "LHW-N1-DCI-ADM-100",
+		"className": "node",
+		"id": "124",
+		"neVersion": "R23.12",
+		"key": "node/124",
+		"productName": "1830PSS_32"
+	},
+	{
+		"guiLabel": "LHW-N1-DCI-WDM-100",
+		"className": "node",
+		"id": "123",
+		"neVersion": "R23.12",
+		"key": "node/123",
+		"productName": "1830PSS_32"
+	},
+	{
+		"guiLabel": "LHW-N2-DCI-ADM-120",
+		"className": "node",
+		"id": "283",
+		"neVersion": "R2.1",
+		"key": "node/283",
+		"productName": "Wavelite"
+	},
+	{
+		"guiLabel": "LHW-N2-DCI-ADM-121",
+		"className": "node",
+		"id": "284",
+		"neVersion": "R2.1",
+		"key": "node/284",
+		"productName": "Wavelite"
+	},
+	{
+		"guiLabel": "LHW-N2-DCI-ADM-200",
+		"className": "node",
+		"id": "126",
+		"neVersion": "R23.12",
+		"key": "node/126",
+		"productName": "1830PSS_32"
+	},
+	{
+		"guiLabel": "LHW-N2-DCI-ADM-220",
+		"className": "node",
+		"id": "159",
+		"neVersion": "R2.1",
+		"key": "node/159",
+		"productName": "Wavelite"
+	},
+	{
+		"guiLabel": "LHW-N2-DCI-WDM-200",
+		"className": "node",
+		"id": "125",
+		"neVersion": "R23.12",
+		"key": "node/125",
+		"productName": "1830PSS_32"
+	},
+	{
+		"guiLabel": "LHW-RZ-DCI-ADM-110",
+		"className": "node",
+		"id": "75",
+		"neVersion": "R23.12",
+		"key": "node/75",
+		"productName": "1830PSI_M"
+	},
+	{
+		"guiLabel": "LHW-RZ-DCI-ADM-111",
+		"className": "node",
+		"id": "145",
+		"neVersion": "R23.12",
+		"key": "node/145",
+		"productName": "1830PSI_M"
+	},
+	{
+		"guiLabel": "LHW-RZ-DCI-ADM-122",
+		"className": "node",
+		"id": "157",
+		"neVersion": "R2.1",
+		"key": "node/157",
+		"productName": "Wavelite"
+	},
+	{
+		"guiLabel": "LHW-RZ-DCI-ADM-123",
+		"className": "node",
+		"id": "158",
+		"neVersion": "R2.1",
+		"key": "node/158",
+		"productName": "Wavelite"
+	},
+	{
+		"guiLabel": "LHW-RZ-DCI-ADM-210",
+		"className": "node",
+		"id": "76",
+		"neVersion": "R23.12",
+		"key": "node/76",
+		"productName": "1830PSI_M"
+	},
+	{
+		"guiLabel": "LHW-RZ-DCI-ADM-211",
+		"className": "node",
+		"id": "146",
+		"neVersion": "R23.12",
+		"key": "node/146",
+		"productName": "1830PSI_M"
+	},
+	{
+		"guiLabel": "LHW-RZ-DCI-ADM-221",
+		"className": "node",
+		"id": "160",
+		"neVersion": "R2.1",
+		"key": "node/160",
+		"productName": "Wavelite"
+	},
+	{
+		"guiLabel": "LHW-RZ-DCI-ADM-222",
+		"className": "node",
+		"id": "161",
+		"neVersion": "R2.1",
+		"key": "node/161",
+		"productName": "Wavelite"
+	},
+	{
+		"guiLabel": "LHW-RZ-DCI-ADM-223",
+		"className": "node",
+		"id": "162",
+		"neVersion": "R2.1",
+		"key": "node/162",
+		"productName": "Wavelite"
+	},
+	{
+		"guiLabel": "N44-RZ-DCI-ADM-100",
+		"className": "node",
+		"id": "63",
+		"neVersion": "R23.12",
+		"key": "node/63",
+		"productName": "1830PSS_32"
+	},
+	{
+		"guiLabel": "N44-RZ-DCI-ADM-110",
+		"className": "node",
+		"id": "104",
+		"neVersion": "R23.12",
+		"key": "node/104",
+		"productName": "1830PSI_M"
+	},
+	{
+		"guiLabel": "N44-RZ-DCI-ADM-200",
+		"className": "node",
+		"id": "64",
+		"neVersion": "R23.12",
+		"key": "node/64",
+		"productName": "1830PSS_32"
+	},
+	{
+		"guiLabel": "N44-RZ-DCI-ADM-210",
+		"className": "node",
+		"id": "106",
+		"neVersion": "R23.12",
+		"key": "node/106",
+		"productName": "1830PSI_M"
+	},
+	{
+		"guiLabel": "N44-RZ-DCI-WDM-100",
+		"className": "node",
+		"id": "23",
+		"neVersion": "R23.12",
+		"key": "node/23",
+		"productName": "1830PSS_32"
+	},
+	{
+		"guiLabel": "N44-RZ-DCI-WDM-200",
+		"className": "node",
+		"id": "43",
+		"neVersion": "R23.12",
+		"key": "node/43",
+		"productName": "1830PSS_32"
+	},
+	{
+		"guiLabel": "PJZ-C1-DCI-ADM-100",
+		"className": "node",
+		"id": "68",
+		"neVersion": "R23.12",
+		"key": "node/68",
+		"productName": "1830PSS_32"
+	},
+	{
+		"guiLabel": "PJZ-C1-DCI-WDM-100",
+		"className": "node",
+		"id": "67",
+		"neVersion": "R23.12",
+		"key": "node/67",
+		"productName": "1830PSS_32"
+	},
+	{
+		"guiLabel": "PJZ-C2-DCI-ADM-200",
+		"className": "node",
+		"id": "66",
+		"neVersion": "R23.12",
+		"key": "node/66",
+		"productName": "1830PSS_32"
+	},
+	{
+		"guiLabel": "PJZ-C2-DCI-ADM-225",
+		"className": "node",
+		"id": "263",
+		"neVersion": "R2.1",
+		"key": "node/263",
+		"productName": "Wavelite"
+	},
+	{
+		"guiLabel": "PJZ-C2-DCI-WDM-200",
+		"className": "node",
+		"id": "65",
+		"neVersion": "R23.12",
+		"key": "node/65",
+		"productName": "1830PSS_32"
+	},
+	{
+		"guiLabel": "PJZ-RZ-DCI-ADM-110",
+		"className": "node",
+		"id": "74",
+		"neVersion": "R23.12",
+		"key": "node/74",
+		"productName": "1830PSI_M"
+	},
+	{
+		"guiLabel": "PJZ-RZ-DCI-ADM-111",
+		"className": "node",
+		"id": "163",
+		"neVersion": "R23.12",
+		"key": "node/163",
+		"productName": "1830PSI_M"
+	},
+	{
+		"guiLabel": "PJZ-RZ-DCI-ADM-120",
+		"className": "node",
+		"id": "287",
+		"neVersion": "R2.1",
+		"key": "node/287",
+		"productName": "Wavelite"
+	},
+	{
+		"guiLabel": "PJZ-RZ-DCI-ADM-121",
+		"className": "node",
+		"id": "288",
+		"neVersion": "R2.1",
+		"key": "node/288",
+		"productName": "Wavelite"
+	},
+	{
+		"guiLabel": "PJZ-RZ-DCI-ADM-122",
+		"className": "node",
+		"id": "153",
+		"neVersion": "R2.1",
+		"key": "node/153",
+		"productName": "Wavelite"
+	},
+	{
+		"guiLabel": "PJZ-RZ-DCI-ADM-123",
+		"className": "node",
+		"id": "154",
+		"neVersion": "R2.1",
+		"key": "node/154",
+		"productName": "Wavelite"
+	},
+	{
+		"guiLabel": "PJZ-RZ-DCI-ADM-210",
+		"className": "node",
+		"id": "73",
+		"neVersion": "R23.12",
+		"key": "node/73",
+		"productName": "1830PSI_M"
+	},
+	{
+		"guiLabel": "PJZ-RZ-DCI-ADM-211",
+		"className": "node",
+		"id": "144",
+		"neVersion": "R23.12",
+		"key": "node/144",
+		"productName": "1830PSI_M"
+	},
+	{
+		"guiLabel": "PJZ-RZ-DCI-ADM-220",
+		"className": "node",
+		"id": "285",
+		"neVersion": "R2.1",
+		"key": "node/285",
+		"productName": "Wavelite"
+	},
+	{
+		"guiLabel": "PJZ-RZ-DCI-ADM-221",
+		"className": "node",
+		"id": "286",
+		"neVersion": "R2.1",
+		"key": "node/286",
+		"productName": "Wavelite"
+	},
+	{
+		"guiLabel": "PJZ-RZ-DCI-ADM-222",
+		"className": "node",
+		"id": "147",
+		"neVersion": "R2.1",
+		"key": "node/147",
+		"productName": "Wavelite"
+	},
+	{
+		"guiLabel": "PJZ-RZ-DCI-ADM-223",
+		"className": "node",
+		"id": "150",
+		"neVersion": "R2.1",
+		"key": "node/150",
+		"productName": "Wavelite"
+	}],
+	"failedCompletion": false,
+	"nadString": null,
+	"successfulCompletion": false,
+	"timeout": 0
+}
