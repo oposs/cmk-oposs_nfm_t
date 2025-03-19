@@ -12,6 +12,7 @@ import traceback
 import os
 import json
 import base64
+import urllib.parse  # Use standard library's urllib.parse for URL encoding
 import urllib3
 urllib3.disable_warnings()
 import requests
@@ -20,8 +21,19 @@ from pprint import pprint
 import re
 from datetime import datetime
 import time
+import socket
 
 LOGGER = logging.getLogger(__name__)
+
+# Define error states for Check_MK output
+CHECK_MK_OK = 0
+CHECK_MK_WARN = 1
+CHECK_MK_CRIT = 2
+CHECK_MK_UNKNOWN = 3
+
+# Constants for retry logic
+MAX_RETRIES = 3
+RETRY_DELAY = 2  # seconds between retries
 
 
 def parse_arguments(argv):
@@ -30,6 +42,10 @@ def parse_arguments(argv):
     parser.add_argument("-u", "--username", required=True, type=str, help="user name")
     parser.add_argument(
         "-p", "--password", required=True, type=str, help="user password"
+    )
+    # Add port parameter
+    parser.add_argument(
+        "--port", type=int, default=443, help="Port number (default: 443)"
     )
     parser.add_argument(
         "-d", "--debug", action="store_true", help="Debug mode: raise Python exceptions"
@@ -40,10 +56,16 @@ def parse_arguments(argv):
         action="count",
         help="Be more verbose (use twice for even more)",
     )
+    parser.add_argument(
+        "-r",
+        "--retries",
+        type=int,
+        default=MAX_RETRIES,
+        help=f"Number of connection retries (default: {MAX_RETRIES})",
+    )
     parser.add_argument("hostaddress", help="nfm_t host name")
 
     args = parser.parse_args(argv)
-
 
     if args.verbose and args.verbose >= 2:
         fmt = "%(asctime)s %(levelname)s: %(name)s: %(filename)s: Line %(lineno)s %(message)s"
@@ -63,161 +85,394 @@ def parse_arguments(argv):
     return args
 
 
+class NFMTConnectionError(Exception):
+    """Custom exception for connection-related errors with NFM-T"""
+    pass
+
+
+class NFMTAuthenticationError(Exception):
+    """Custom exception for authentication-related errors with NFM-T"""
+    pass
+
+
+class NFMTAPIError(Exception):
+    """Custom exception for API response-related errors with NFM-T"""
+    pass
+
+
+class NFMTDataError(Exception):
+    """Custom exception for data processing errors with NFM-T"""
+    pass
+
+
 class nfmTFetcher:
-    def __init__(self, hostaddress, username, password) -> None:  # type:ignore[no-untyped-def]
-
-        self._endpoint = "https://%s/" % hostaddress
+    def __init__(self, hostaddress, username, password, max_retries=MAX_RETRIES, port=443) -> None:  # type:ignore[no-untyped-def]
+        # Use the provided port in the endpoint
+        self._endpoint = "https://%s:%d/" % (hostaddress, port)
         self._testmode = hostaddress == "test"
+        self._max_retries = max_retries
+        self._headers = None
+        
         if self._testmode:
+            LOGGER.info("Running in test mode with host 'test'")
             return
-        response = requests.post(
-            self._endpoint + "rest-gateway/rest/api/v1/auth/token",
-            headers={
-                "content-type": "application/json",
-                "accept": "application/json",
-                "authorization": "Basic %s" % base64.b64encode(
-                        f"{username}:{password}".encode("utf-8")
-                    ).decode("utf-8"),
-            },
-            data=json.dumps(
-                { "grant_type": "client_credentials" }
-            ),
-            verify=False,  # nosec
-        )
+        
+        # Verify DNS resolution before attempting connection
+        try:
+            socket.gethostbyname(hostaddress)
+        except socket.gaierror as e:
+            LOGGER.error(f"DNS resolution failed for host '{hostaddress}': {e}")
+            raise NFMTConnectionError(f"DNS resolution failed for host '{hostaddress}': {e}")
+        
+        self._authenticate(username, password)
 
-        self._headers = {
+    def _authenticate(self, username, password):
+        """Handle authentication with retry logic"""
+        auth_endpoint = self._endpoint + "rest-gateway/rest/api/v1/auth/token"
+        auth_headers = {
             "content-type": "application/json",
             "accept": "application/json",
-            "authorization": "Bearer %s" % response.json()["access_token"],
+            "authorization": "Basic %s" % base64.b64encode(
+                    f"{username}:{password}".encode("utf-8")
+                ).decode("utf-8"),
         }
+        auth_data = json.dumps({"grant_type": "client_credentials"})
+        
+        for retry in range(self._max_retries):
+            try:
+                LOGGER.debug(f"Attempting authentication to {auth_endpoint}, attempt {retry+1}/{self._max_retries}")
+                response = requests.post(
+                    auth_endpoint,
+                    headers=auth_headers,
+                    data=auth_data,
+                    verify=False,  # nosec
+                    timeout=30,  # Add timeout to prevent hanging
+                )
+                
+                if response.status_code == 401:
+                    LOGGER.error(f"Authentication failed with status code {response.status_code}")
+                    raise NFMTAuthenticationError(f"Authentication failed: Invalid credentials")
+                
+                if response.status_code != 200:
+                    LOGGER.error(f"Authentication failed with status code {response.status_code}: {response.text}")
+                    raise NFMTAPIError(f"Authentication failed with status code {response.status_code}")
+                
+                access_token = response.json().get("access_token")
+                if not access_token:
+                    LOGGER.error("No access token in authentication response")
+                    raise NFMTAPIError("No access token in authentication response")
+                
+                self._headers = {
+                    "content-type": "application/json",
+                    "accept": "application/json",
+                    "authorization": "Bearer %s" % access_token,
+                }
+                LOGGER.debug("Authentication successful")
+                return
+                
+            except requests.ConnectionError as e:
+                LOGGER.warning(f"Connection error during authentication (attempt {retry+1}/{self._max_retries}): {e}")
+                if retry < self._max_retries - 1:
+                    LOGGER.info(f"Retrying in {RETRY_DELAY} seconds...")
+                    time.sleep(RETRY_DELAY)
+                else:
+                    LOGGER.error(f"Failed to connect after {self._max_retries} attempts")
+                    raise NFMTConnectionError(f"Failed to connect to {self._endpoint}: {e}")
+            
+            except requests.Timeout as e:
+                LOGGER.warning(f"Timeout during authentication (attempt {retry+1}/{self._max_retries}): {e}")
+                if retry < self._max_retries - 1:
+                    LOGGER.info(f"Retrying in {RETRY_DELAY} seconds...")
+                    time.sleep(RETRY_DELAY)
+                else:
+                    LOGGER.error(f"Connection timed out after {self._max_retries} attempts")
+                    raise NFMTConnectionError(f"Connection timed out: {e}")
+            
+            except (requests.RequestException, json.JSONDecodeError) as e:
+                LOGGER.error(f"Error during authentication: {e}")
+                raise NFMTAPIError(f"Error during authentication: {e}")
+
+    def _make_api_request(self, method, endpoint, params=None):
+        """Make API request with retry logic"""
+        if self._testmode:
+            # Map endpoints to specific test files
+            if endpoint.endswith("alarms/details"):
+                test_file = "/tmp/nfm_t_alarms.json"
+            elif endpoint.endswith("otn/node/"):
+                test_file = "/tmp/nfm_t_nodes.json"
+            elif endpoint.endswith("otn/connection/path"):
+                test_file = "/tmp/nfm_t_services.json"
+            else:
+                test_file = f"/tmp/nfm_t_{endpoint.split('/')[-1]}.json"
+                
+            LOGGER.debug(f"Test mode: Loading test data from {test_file}")
+            try:
+                return json.load(open(test_file))
+            except (FileNotFoundError, json.JSONDecodeError) as e:
+                LOGGER.error(f"Error loading test data: {e}")
+                raise NFMTDataError(f"Error loading test data from {test_file}: {e}")
+        
+        if not self._headers:
+            raise NFMTAuthenticationError("Not authenticated. Headers not initialized.")
+        
+        full_url = f"{self._endpoint}{endpoint}"
+        for retry in range(self._max_retries):
+            try:
+                LOGGER.debug(f"Making {method} request to {full_url}, attempt {retry+1}/{self._max_retries}")
+                response = requests.request(
+                    method=method,
+                    url=full_url,
+                    headers=self._headers,
+                    params=params,
+                    verify=False,  # nosec
+                    timeout=60,  # Add timeout to prevent hanging
+                )
+                
+                if response.status_code != 200:
+                    LOGGER.warning(f"API request failed with status code: {response.status_code}")
+                    LOGGER.warning(f"Response: {response.text}")
+                    raise NFMTAPIError(f"API request to {full_url} failed with status code {response.status_code}: {response.text}")
+                
+                try:
+                    return response.json()
+                except json.JSONDecodeError as e:
+                    LOGGER.error(f"Failed to decode JSON response: {e}")
+                    LOGGER.debug(f"Response content: {response.text[:1000]}...")
+                    raise NFMTDataError(f"Failed to decode JSON response: {e}")
+                
+            except requests.ConnectionError as e:
+                LOGGER.warning(f"Connection error during API request (attempt {retry+1}/{self._max_retries}): {e}")
+                if retry < self._max_retries - 1:
+                    LOGGER.info(f"Retrying in {RETRY_DELAY} seconds...")
+                    time.sleep(RETRY_DELAY)
+                else:
+                    LOGGER.error(f"Failed to connect after {self._max_retries} attempts")
+                    raise NFMTConnectionError(f"Failed to connect to {full_url}: {e}")
+            
+            except requests.Timeout as e:
+                LOGGER.warning(f"Timeout during API request (attempt {retry+1}/{self._max_retries}): {e}")
+                if retry < self._max_retries - 1:
+                    LOGGER.info(f"Retrying in {RETRY_DELAY} seconds...")
+                    time.sleep(RETRY_DELAY)
+                else:
+                    LOGGER.error(f"Request timed out after {self._max_retries} attempts")
+                    raise NFMTConnectionError(f"Request timed out: {e}")
+            
+            except requests.RequestException as e:
+                LOGGER.error(f"Error during API request: {e}")
+                raise NFMTAPIError(f"Error during API request to {full_url}: {e}")
 
     def __fetch_alarms(self):
-        if self._testmode:
-            return json.load(open("/tmp/nfm_t_alarms.json"))
-        
-        severity_levels = ['critical', 'major', 'minor']
-        alarm_filter = ' or '.join(f"severity='{level}'" for level in severity_levels)
-        encoded_filter = urllib3.parse.quote(alarm_filter)
-        
-        response = requests.get(
-            f"{self._endpoint}FaultManagement/rest/api/v2/alarms/details?alarmFilter={encoded_filter}",
-            headers=self._headers,
-            verify=False,  # nosec
-        )
-
-        if response.status_code != 200:
-            LOGGER.warning("response status code: %s", response.status_code)
-            LOGGER.warning("response : %s", response.text)
-            raise RuntimeError("Failed to fetch alarms")
-        else:
-            LOGGER.debug("success! response: %s", response.text)
-            return response.json()
-        
-    def __fetch_nodes (self):
-        if self._testmode:
-            return json.load(open("/tmp/nfm_t_nodes.json"))
-        response = requests.get(
-            f"{self._endpoint}oms1350/data/otn/node/",
-            headers=self._headers,
-            verify=False,  # nosec
-        )
-
-        if response.status_code != 200:
-            LOGGER.warning("response status code: %s", response.status_code)
-            LOGGER.warning("response : %s", response.text)
-            raise RuntimeError("Failed to fetch nodes")
-        else:
-            LOGGER.debug("success! response: %s", response.text)
-            return response.json()
-        
-    def __fetch_services (self):
-        if self._testmode:
-            return json.load(open("/tmp/nfm_t_services.json"))
-        response = requests.get(
-            f"{self._endpoint}oms1350/data/otn/connection/path",
-            headers=self._headers,
-            verify=False,  # nosec
-        )
-
-        if response.status_code != 200:
-            LOGGER.warning("response status code: %s", response.status_code)
-            LOGGER.warning("response : %s", response.text)
-            raise RuntimeError("Failed to fetch services")
-        else:
-            LOGGER.debug("success! response: %s", response.text)
-            return response.json()
-        
-    def fetch(self):
         try:
-            return self.__postprocess(
-                self.__fetch_alarms(),
-                self.__fetch_nodes(),
-                self.__fetch_services(),
+            # In test mode, we don't need to build the filter
+            if self._testmode:
+                return self._make_api_request("GET", "FaultManagement/rest/api/v2/alarms/details")
+                
+            severity_levels = ['critical', 'major', 'minor']
+            alarm_filter = ' or '.join(f"severity='{level}'" for level in severity_levels)
+            encoded_filter = urllib.parse.quote(alarm_filter)
+            
+            return self._make_api_request(
+                "GET", 
+                "FaultManagement/rest/api/v2/alarms/details", 
+                params={"alarmFilter": encoded_filter}
             )
         except Exception as e:
-            LOGGER.warning("error processing response: %s", e)
-            raise ValueError("Got invalid data from host")
+            LOGGER.error(f"Error fetching alarms: {e}")
+            raise NFMTAPIError(f"Failed to fetch alarms: {e}")
+        
+    def __fetch_nodes(self):
+        try:
+            return self._make_api_request("GET", "oms1350/data/otn/node/")
+        except Exception as e:
+            LOGGER.error(f"Error fetching nodes: {e}")
+            raise NFMTAPIError(f"Failed to fetch nodes: {e}")
+        
+    def __fetch_services(self):
+        try:
+            return self._make_api_request("GET", "oms1350/data/otn/connection/path")
+        except Exception as e:
+            LOGGER.error(f"Error fetching services: {e}")
+            raise NFMTAPIError(f"Failed to fetch services: {e}")
+        
+    def fetch(self):
+        """Fetch data from NFM-T and return processed results"""
+        try:
+            # Fetch all required data
+            alarms_data = self.__fetch_alarms()
+            nodes_data = self.__fetch_nodes()
+            services_data = self.__fetch_services()
+            
+            # Process the data
+            return self.__postprocess(alarms_data, nodes_data, services_data)
+            
+        except NFMTConnectionError as e:
+            LOGGER.error(f"Connection error: {e}")
+            return self.__generate_error_output("CONNECTION_ERROR", str(e))
+            
+        except NFMTAuthenticationError as e:
+            LOGGER.error(f"Authentication error: {e}")
+            return self.__generate_error_output("AUTH_ERROR", str(e))
+            
+        except NFMTAPIError as e:
+            LOGGER.error(f"API error: {e}")
+            return self.__generate_error_output("API_ERROR", str(e))
+            
+        except NFMTDataError as e:
+            LOGGER.error(f"Data processing error: {e}")
+            return self.__generate_error_output("DATA_ERROR", str(e))
+            
+        except Exception as e:
+            LOGGER.error(f"Unexpected error: {e}")
+            LOGGER.debug(traceback.format_exc())
+            return self.__generate_error_output("UNKNOWN_ERROR", str(e))
+
+    def __generate_error_output(self, error_type, error_message):
+        """Generate a properly formatted error output for Check_MK"""
+        # Create a standardized error response that the Check_MK plugin can handle
+        error_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        return [{
+            "node": "NFM-T_AGENT",
+            "alarms": [{
+                "severity": "critical",
+                "summary": f"Agent Error [{error_type}]: {error_message} at {error_time}"
+            }]
+        }]
 
     def __postprocess(self, alarms, nodes, services):
-        SEVERITY_LEVELS = {
-            'critical': 4,
-            'major': 3,
-            'minor': 2,
-            'warning': 1,
-            'ok': 0
-        }
+        """Process the data from NFM-T API into the desired output format"""
+        try:
+            SEVERITY_LEVELS = {
+                'critical': 4,
+                'major': 3,
+                'minor': 2,
+                'warning': 1,
+                'ok': 0
+            }
 
-        node_status = {}
-        # Sort alarms by severity in descending order
-        sorted_alarms = sorted(
-            alarms.get('response', {}).get('data', []),
-            key=lambda x: SEVERITY_LEVELS.get(x.get('severity', 'ok'), 0),
-            reverse=True
-        )
-        
-        for alarm in sorted_alarms:
-            ne_name = alarm['neName']
-            current_severity = alarm.get('severity', 'ok').lower()
+            node_status = {}
+            # Sort alarms by severity in descending order
+            sorted_alarms = sorted(
+                alarms.get('response', {}).get('data', []),
+                key=lambda x: SEVERITY_LEVELS.get(x.get('severity', 'ok'), 0),
+                reverse=True
+            )
             
-            if ne_name not in node_status:
-                node_status[ne_name] = {
-                    'severity': current_severity,
-                    'alarms': []
-                }
+            for alarm in sorted_alarms:
+                ne_name = alarm.get('neName')
+                if not ne_name:
+                    LOGGER.warning(f"Alarm without neName: {alarm}")
+                    continue
+                    
+                current_severity = alarm.get('severity', 'ok').lower()
+                
+                if ne_name not in node_status:
+                    node_status[ne_name] = {
+                        'severity': current_severity,
+                        'alarms': []
+                    }
+                
+                node_status[ne_name]['alarms'].append({
+                    'summary': alarm.get('additionalText', 'No additional text'),
+                    'severity': current_severity
+                })
             
-            node_status[ne_name]['alarms'].append({
-                'summary': alarm.get('additionalText', 'No additional text'),
-                'severity': current_severity
-            })
-            
+            result = []
+            for node in nodes.get('items', []):
+                if not node.get('guiLabel'):
+                    LOGGER.warning(f"Node without guiLabel: {node}")
+                    continue
+                    
+                alarm_entries = []
+                status = node_status.get(node['guiLabel'], {})
+                if status.get('alarms'):
+                    alarm_entries = status['alarms']
+                
+                result.append({
+                    "node": node['guiLabel'],
+                    "alarms": alarm_entries if alarm_entries else [{'severity': 'ok', 'summary': 'No active Alarms'}]
+                })
 
-        result = []
-        for node in nodes.get('items', []):
-            alarm_entries = []
-            status = node_status.get(node['guiLabel'], {})
-            if status.get('alarms'):
-                alarm_entries = status['alarms']
+            if not result:
+                LOGGER.warning("No nodes found in the processed data")
+                return self.__generate_error_output("NO_NODES", "No nodes found in the API response")
+                
+            return result
             
-            result.append({
-                "node": node['guiLabel'],
-                "alarms": alarm_entries if alarm_entries else [{'state': 'ok', 'summary': 'No active Alarms [ok]'}]
-            })
-
-        return result
+        except Exception as e:
+            LOGGER.error(f"Error in postprocessing: {e}")
+            LOGGER.debug(traceback.format_exc())
+            raise NFMTDataError(f"Failed to process data: {e}")
 
 
 def main(argv=None):
-    replace_passwords()
-    args = parse_arguments(argv or sys.argv[1:])
-    sys.stdout.write("<<<nfm_t:sep(0)>>>\n")
     try:
-        for session in nfmTFetcher(args.hostaddress, args.username, args.password).fetch():
+        replace_passwords()
+        args = parse_arguments(argv or sys.argv[1:])
+        sys.stdout.write("<<<nfm_t:sep(0)>>>\n")
+        
+        # Initialize fetcher with retry count and port from args
+        fetcher = nfmTFetcher(args.hostaddress, args.username, args.password, args.retries, args.port)
+        
+        # Fetch data and output
+        for session in fetcher.fetch():
             # turn the session content into a single line json string
-            sys.stdout.write(json.dumps(session,sort_keys=True,separators=(',', ':')) + "\n")
+            sys.stdout.write(json.dumps(session, sort_keys=True, separators=(',', ':')) + "\n")
+            
+        sys.exit(CHECK_MK_OK)
+        
+    except NFMTConnectionError as e:
+        LOGGER.error(f"Connection error: {e}")
+        if args.debug:
+            sys.stderr.write(traceback.format_exc())
+        sys.stdout.write(json.dumps({
+            "node": "NFM-T_AGENT",
+            "alarms": [{
+                "severity": "critical",
+                "summary": f"Connection Error: {e}"
+            }]
+        }, sort_keys=True, separators=(',', ':')) + "\n")
+        sys.exit(CHECK_MK_CRIT)
+        
+    except NFMTAuthenticationError as e:
+        LOGGER.error(f"Authentication error: {e}")
+        if args.debug:
+            sys.stderr.write(traceback.format_exc())
+        sys.stdout.write(json.dumps({
+            "node": "NFM-T_AGENT",
+            "alarms": [{
+                "severity": "critical", 
+                "summary": f"Authentication Error: {e}"
+            }]
+        }, sort_keys=True, separators=(',', ':')) + "\n")
+        sys.exit(CHECK_MK_CRIT)
+        
+    except (NFMTAPIError, NFMTDataError) as e:
+        LOGGER.error(f"API or data error: {e}")
+        if args.debug:
+            sys.stderr.write(traceback.format_exc())
+        sys.stdout.write(json.dumps({
+            "node": "NFM-T_AGENT",
+            "alarms": [{
+                "severity": "critical",
+                "summary": f"API/Data Error: {e}"
+            }]
+        }, sort_keys=True, separators=(',', ':')) + "\n")
+        sys.exit(CHECK_MK_CRIT)
+        
     except Exception as e:
-        formatted_traceback = traceback.format_exc()
-        print(formatted_traceback)
-        print(f"Error: {e}")
-        sys.exit(1)
+        LOGGER.error(f"Unexpected error: {e}")
+        if args.debug:
+            sys.stderr.write(traceback.format_exc())
+        sys.stdout.write(json.dumps({
+            "node": "NFM-T_AGENT", 
+            "alarms": [{
+                "severity": "critical",
+                "summary": f"Unexpected Error: {e}"
+            }]
+        }, sort_keys=True, separators=(',', ':')) + "\n")
+        sys.exit(CHECK_MK_UNKNOWN)
 
-    sys.exit(0)
+
+if __name__ == "__main__":
+    main()

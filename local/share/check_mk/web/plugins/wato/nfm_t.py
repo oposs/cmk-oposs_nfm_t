@@ -28,6 +28,14 @@ def _valuespec_special_agents_nfm_t():
                     allow_empty=False,
                 ),
             ),
+            (
+                "port",
+                TextInput(
+                    title=_("Port"),
+                    allow_empty=True,
+                    default_value="443",
+                ),
+            )
         ],
         required_keys=["username", "password"],
         title=_("NFM-T Monitor"),

@@ -15,8 +15,9 @@ def agent_nfm_t_arguments(
         for chunk in (
             ("-u", params["username"]) if "username" in params else (),
             ("-p", passwordstore_get_cmdline("%s", params["password"]))
-            if "password" in params
-            else (),
+                if "password" in params else (),
+            ("--port", str(params["port"]))
+                if "port" in params else (),
             (hostname,),
         )
         for elem in chunk
