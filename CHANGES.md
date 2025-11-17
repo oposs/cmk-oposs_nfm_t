@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### New
+
+### Changed
+
+### Fixed
+
+## 1.0.0 - 2025-11-17
+### New
+- Added `graphing/translations.py` for seamless metric migration
+- Added `__init__.py` package marker
+- Added type-safe parameter validation via Pydantic
+
 ### Changed
 - **BREAKING**: Complete migration to Checkmk 2.4+ architecture
 - Migrated plugin structure to `cmk_addons/plugins/oposs_nfm_t/` (unified location)
@@ -19,12 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Special agent now in `libexec/agent_oposs_nfm_t` (executable, no .py extension)
 - Removed all old plugin files from legacy locations
 
-### New
-- Added `graphing/translations.py` for seamless metric migration
-- Added `__init__.py` package marker
-- Added type-safe parameter validation via Pydantic
-
 ### Fixed
 - Improved password handling with modern password store integration
 - Better alignment with Checkmk 2.4 naming conventions
+
 
