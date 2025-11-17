@@ -1,0 +1,17 @@
+/*
+!/local
+!/LICENSE
+!/README.md
+!/*.md
+!/.gitignore
+!/.github
+!/.mkp-builder.ini
+*~
+*.swp
+*.bak
+*.tmp
+*.log
+*.DS_Store
+*.idea
+*.env
+__pycache__

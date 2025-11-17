@@ -13,9 +13,8 @@ import os
 import json
 import base64
 import urllib.parse  # Use standard library's urllib.parse for URL encoding
-import urllib3
-urllib3.disable_warnings()
 import requests
+requests.packages.urllib3.disable_warnings()
 from cmk.utils.password_store import replace_passwords
 from pprint import pprint
 import re
@@ -112,6 +111,9 @@ class nfmTFetcher:
         self._testmode = hostaddress == "test"
         self._max_retries = max_retries
         self._headers = None
+        self._access_token = None
+        self._username = username
+        self._password = password
         
         if self._testmode:
             LOGGER.info("Running in test mode with host 'test'")
@@ -136,7 +138,6 @@ class nfmTFetcher:
                     f"{username}:{password}".encode("utf-8")
                 ).decode("utf-8"),
         }
-        auth_data = json.dumps({"grant_type": "client_credentials"})
         
         for retry in range(self._max_retries):
             try:
@@ -144,7 +145,7 @@ class nfmTFetcher:
                 response = requests.post(
                     auth_endpoint,
                     headers=auth_headers,
-                    data=auth_data,
+                    json={"grant_type": "client_credentials"},
                     verify=False,  # nosec
                     timeout=30,  # Add timeout to prevent hanging
                 )
@@ -157,15 +158,15 @@ class nfmTFetcher:
                     LOGGER.error(f"Authentication failed with status code {response.status_code}: {response.text}")
                     raise NFMTAPIError(f"Authentication failed with status code {response.status_code}")
                 
-                access_token = response.json().get("access_token")
-                if not access_token:
+                self._access_token = response.json().get("access_token")
+                if not self._access_token:
                     LOGGER.error("No access token in authentication response")
                     raise NFMTAPIError("No access token in authentication response")
                 
                 self._headers = {
                     "content-type": "application/json",
                     "accept": "application/json",
-                    "authorization": "Bearer %s" % access_token,
+                    "authorization": "Bearer %s" % self._access_token,
                 }
                 LOGGER.debug("Authentication successful")
                 return
@@ -191,6 +192,53 @@ class nfmTFetcher:
             except (requests.RequestException, json.JSONDecodeError) as e:
                 LOGGER.error(f"Error during authentication: {e}")
                 raise NFMTAPIError(f"Error during authentication: {e}")
+            
+    def _revoke_token(self):
+        """Revoke the access token when done"""
+        # Check if we're in test mode or if the token attribute doesn't exist or is None
+        if getattr(self, '_testmode', True) or self._access_token is None:
+            return
+
+        # Correct endpoint path based on the documentation
+        revoke_endpoint = self._endpoint + "rest-gateway/rest/api/v1/auth/revocation"
+        
+        # Create form data with the token
+        form_data = {
+            "token": self._access_token,
+            "token_type_hint": "token",  # Based on the API doc
+            "formVars": json.dumps({})  # Empty JSON object as formVars
+        }
+        
+        # Set proper headers for form URL encoded data
+        revoke_headers = {
+            "authorization": "Basic %s" % base64.b64encode(
+                    f"{self._username}:{self._password}".encode("utf-8")
+                ).decode("utf-8"),
+            "content-type": "application/x-www-form-urlencoded",
+        }
+        
+        try:
+            LOGGER.debug(f"Revoking token at {revoke_endpoint}")
+            response = requests.post(
+                revoke_endpoint,
+                headers=revoke_headers,
+                data=form_data,
+                verify=False,  # nosec
+                timeout=30,
+            )
+            
+            if response.status_code == 200:
+                LOGGER.debug("Token successfully revoked")
+            else:
+                LOGGER.warning(f"Failed to revoke token: {response.status_code} - {response.text}")
+                
+        except Exception as e:
+            # Don't raise exceptions during cleanup - just log them
+            LOGGER.warning(f"Error during token revocation: {e}")
+        
+        # Clear token and headers regardless of success
+        self._access_token = None
+        self._headers = None    
 
     def _make_api_request(self, method, endpoint, params=None):
         """Make API request with retry logic"""
@@ -326,6 +374,25 @@ class nfmTFetcher:
             LOGGER.error(f"Unexpected error: {e}")
             LOGGER.debug(traceback.format_exc())
             return self.__generate_error_output("UNKNOWN_ERROR", str(e))
+        
+        finally:
+            # Always attempt to revoke the token, regardless of success or failure
+            try:
+                self._revoke_token()
+            except Exception as e:
+                LOGGER.warning(f"Error during token revocation in finally block: {e}")
+
+    def __del__(self):
+        """Destructor to ensure token is revoked when object is garbage collected"""
+        try:
+            self._revoke_token()
+        except Exception as e:
+            # We can't use LOGGER here reliably in __del__ as it might be None during shutdown
+            # So we use a direct print statement as a fallback
+            try:
+                LOGGER.warning(f"Error during cleanup in destructor: {e}")
+            except:
+                print(f"Warning: Error during token cleanup in destructor: {e}")
 
     def __generate_error_output(self, error_type, error_message):
         """Generate a properly formatted error output for Check_MK"""
@@ -409,7 +476,7 @@ def main(argv=None):
     try:
         replace_passwords()
         args = parse_arguments(argv or sys.argv[1:])
-        sys.stdout.write("<<<nfm_t:sep(0)>>>\n")
+        sys.stdout.write("<<<oposs_nfm_t:sep(0)>>>\n")
         
         # Initialize fetcher with retry count and port from args
         fetcher = nfmTFetcher(args.hostaddress, args.username, args.password, args.retries, args.port)
