@@ -10,6 +10,7 @@ from collections.abc import Iterator
 from pydantic import BaseModel
 from cmk.server_side_calls.v1 import (
     HostConfig,
+    Secret,
     SpecialAgentCommand,
     SpecialAgentConfig,
 )
@@ -18,7 +19,7 @@ from cmk.server_side_calls.v1 import (
 class Params(BaseModel):
     """Type-safe parameter model matching the ruleset"""
     username: str
-    password: tuple[str, str]  # ("password", "stored_password_id") or ("store", "id")
+    password: Secret
     port: str | None = None
 
 
@@ -29,9 +30,11 @@ def commands_function(
     """Build command-line arguments for the special agent"""
 
     # Build argument list
-    args: list[str | tuple[str, str, str]] = [
-        "-u", params.username,
-        "-p", params.password,  # Tuple for password store
+    args = [
+        "-u",
+        params.username,
+        "-p",
+        params.password.unsafe(),  # Extract password from Secret
     ]
 
     # Optional port parameter
