@@ -14,7 +14,6 @@ import json
 import base64
 import urllib.parse  # Use standard library's urllib.parse for URL encoding
 import requests
-requests.packages.urllib3.disable_warnings()
 from cmk.utils.password_store import replace_passwords
 from pprint import pprint
 import re
@@ -45,6 +44,9 @@ def parse_arguments(argv):
     # Add port parameter
     parser.add_argument(
         "--port", type=int, default=443, help="Port number (default: 443)"
+    )
+    parser.add_argument(
+        "--no-cert-check", action="store_true", help="Disable SSL certificate verification (insecure)"
     )
     parser.add_argument(
         "-d", "--debug", action="store_true", help="Debug mode: raise Python exceptions"
@@ -105,7 +107,7 @@ class NFMTDataError(Exception):
 
 
 class nfmTFetcher:
-    def __init__(self, hostaddress, username, password, max_retries=MAX_RETRIES, port=443) -> None:  # type:ignore[no-untyped-def]
+    def __init__(self, hostaddress, username, password, max_retries=MAX_RETRIES, port=443, no_cert_check=False) -> None:  # type:ignore[no-untyped-def]
         # Use the provided port in the endpoint
         self._endpoint = "https://%s:%d/" % (hostaddress, port)
         self._testmode = hostaddress == "test"
@@ -114,6 +116,7 @@ class nfmTFetcher:
         self._access_token = None
         self._username = username
         self._password = password
+        self._verify_ssl = not no_cert_check
         
         if self._testmode:
             LOGGER.info("Running in test mode with host 'test'")
@@ -146,7 +149,7 @@ class nfmTFetcher:
                     auth_endpoint,
                     headers=auth_headers,
                     json={"grant_type": "client_credentials"},
-                    verify=False,  # nosec
+                    verify=self._verify_ssl,
                     timeout=30,  # Add timeout to prevent hanging
                 )
                 
@@ -223,7 +226,7 @@ class nfmTFetcher:
                 revoke_endpoint,
                 headers=revoke_headers,
                 data=form_data,
-                verify=False,  # nosec
+                verify=self._verify_ssl,
                 timeout=30,
             )
             
@@ -272,7 +275,7 @@ class nfmTFetcher:
                     url=full_url,
                     headers=self._headers,
                     params=params,
-                    verify=False,  # nosec
+                    verify=self._verify_ssl,
                     timeout=60,  # Add timeout to prevent hanging
                 )
                 
@@ -477,9 +480,13 @@ def main(argv=None):
         replace_passwords()
         args = parse_arguments(argv or sys.argv[1:])
         sys.stdout.write("<<<oposs_nfm_t:sep(0)>>>\n")
-        
-        # Initialize fetcher with retry count and port from args
-        fetcher = nfmTFetcher(args.hostaddress, args.username, args.password, args.retries, args.port)
+
+        # Disable SSL warnings if certificate verification is disabled
+        if args.no_cert_check:
+            requests.packages.urllib3.disable_warnings()
+
+        # Initialize fetcher with retry count, port, and cert check from args
+        fetcher = nfmTFetcher(args.hostaddress, args.username, args.password, args.retries, args.port, args.no_cert_check)
         
         # Fetch data and output
         for session in fetcher.fetch():

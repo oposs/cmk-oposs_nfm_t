@@ -8,6 +8,7 @@ Provides GUI configuration form for NFM-T monitoring parameters
 
 from cmk.rulesets.v1 import Title, Help
 from cmk.rulesets.v1.form_specs import (
+    BooleanChoice,
     DefaultValue,
     DictElement,
     Dictionary,
@@ -46,6 +47,14 @@ def _formspec():
                     help_text=Help("TCP port for NFM-T API (default: 443)"),
                     prefill=DefaultValue("443"),
                     custom_validate=[validators.NetworkPort()],
+                ),
+                required=False,
+            ),
+            "no_cert_check": DictElement(
+                parameter_form=BooleanChoice(
+                    title=Title("Disable SSL certificate verification"),
+                    help_text=Help("Skip SSL certificate verification for HTTPS connections (insecure, use only for testing)"),
+                    prefill=DefaultValue(False),
                 ),
                 required=False,
             ),

@@ -21,6 +21,7 @@ class Params(BaseModel):
     username: str
     password: Secret
     port: str | None = None
+    no_cert_check: bool = False
 
 
 def commands_function(
@@ -41,8 +42,12 @@ def commands_function(
     if params.port:
         args.extend(["--port", params.port])
 
+    # Optional certificate verification disable
+    if params.no_cert_check:
+        args.append("--no-cert-check")
+
     # Host address (from CheckMK host config)
-    args.append(host_config.primary_ip_config.address or host_config.name)
+    args.append(host_config.name)
 
     yield SpecialAgentCommand(command_arguments=args)
 
