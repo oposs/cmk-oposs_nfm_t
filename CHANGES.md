@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 ### Fixed
+
+## 1.0.6 - 2025-11-19
+### Fixed
 - Port field now uses Integer type for compatibility with Check MK 2.3 NetworkPort validator
 
 ## 1.0.5 - 2025-11-19
