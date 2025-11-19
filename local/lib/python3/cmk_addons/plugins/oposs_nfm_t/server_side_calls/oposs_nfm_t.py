@@ -20,7 +20,7 @@ class Params(BaseModel):
     """Type-safe parameter model matching the ruleset"""
     username: str
     password: Secret
-    port: str | None = None
+    port: int | None = None
     no_cert_check: bool = False
 
 
@@ -40,7 +40,7 @@ def commands_function(
 
     # Optional port parameter
     if params.port:
-        args.extend(["--port", params.port])
+        args.extend(["--port", str(params.port)])
 
     # Optional certificate verification disable
     if params.no_cert_check:

@@ -12,6 +12,7 @@ from cmk.rulesets.v1.form_specs import (
     DefaultValue,
     DictElement,
     Dictionary,
+    Integer,
     Password,
     String,
     migrate_to_password,
@@ -42,10 +43,10 @@ def _formspec():
                 required=True,
             ),
             "port": DictElement(
-                parameter_form=String(
+                parameter_form=Integer(
                     title=Title("TCP Port"),
                     help_text=Help("TCP port for NFM-T API (default: 443)"),
-                    prefill=DefaultValue("443"),
+                    prefill=DefaultValue(443),
                     custom_validate=[validators.NetworkPort()],
                 ),
                 required=False,
