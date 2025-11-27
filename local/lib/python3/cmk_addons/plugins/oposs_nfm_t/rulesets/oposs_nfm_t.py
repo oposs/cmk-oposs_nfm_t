@@ -23,7 +23,7 @@ from cmk.rulesets.v1.rule_specs import SpecialAgent, Topic
 
 def _formspec():
     return Dictionary(
-        title=Title("NFM-T Monitor"),
+        title=Title("OPOSS NFM-T Monitor"),
         help_text=Help("Configure monitoring of Nokia NFM-T managed nodes via REST API"),
         elements={
             "username": DictElement(
@@ -68,7 +68,7 @@ def _formspec():
 # Name must match special_agent_{name} in server_side_calls
 rule_spec_special_agent_oposs_nfm_t = SpecialAgent(
     name="oposs_nfm_t",
-    title=Title("NFM-T Monitor"),
+    title=Title("OPOSS NFM-T Monitor"),
     topic=Topic.GENERAL,
     parameter_form=_formspec,
 )
