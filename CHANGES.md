@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### New
+
+### Changed
+
+### Fixed
+
+## 2.0.0 - 2025-12-16
+### New
 - **Piggyback support**: Each NFM-T node now becomes a virtual host in Checkmk
 - **Service monitoring**: Connection/path services from `/oms1350/data/otn/connection/path` are now monitored
   - Services appear on both endpoint nodes (a1NodeName and z1NodeName)
@@ -22,8 +29,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Agent output now uses piggyback format with `<<<<hostname>>>>` markers
 - Main NFM-T host now only shows AGENT STATUS and System Alarms
 - Node alarms moved to piggyback hosts under "NFM-T Fault Manager Alarms" service
-
-### Fixed
 
 ## 1.0.8 - 2025-11-27
 ### Fixed
