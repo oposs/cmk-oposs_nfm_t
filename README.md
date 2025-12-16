@@ -1,12 +1,15 @@
 # Checkmk NFM-T Monitor
 
-This extension pack contains a Checkmk special agent for monitoring Nokia NFM-T managed nodes via the REST API. It discovers nodes and monitors their alarm status.
+This extension pack contains a Checkmk special agent for monitoring Nokia NFM-T managed nodes via the REST API. It discovers nodes and monitors their alarm status, with piggyback support for creating virtual hosts per node.
 
 ## Features
 
 - REST API integration with Nokia NFM-T
 - Automatic node discovery
+- **Piggyback support**: Each NFM-T node becomes a virtual host in Checkmk
 - Alarm monitoring with severity levels (critical, major, minor, warning, ok)
+- **Service monitoring**: Connection/path services mapped to endpoint nodes
+- System alarms (MNC-FM) displayed on the NFM-T host
 - Connection retry logic and comprehensive error handling
 - Historical metric data preservation via translations
 - Full Checkmk 2.4+ compatibility
@@ -41,6 +44,39 @@ This extension pack contains a Checkmk special agent for monitoring Nokia NFM-T 
    - Port: TCP port (default: 443)
 3. Apply the rule to your NFM-T host
 4. Run service discovery on the host
+5. The plugin will create piggyback hosts for each NFM-T node automatically
+
+## Architecture
+
+### Services on NFM-T Host
+
+| Service | Description |
+|---------|-------------|
+| `NFM-T AGENT STATUS` | Agent health and monitored node count |
+| `NFM-T System Alarms` | Alarms not assigned to any node (e.g., MNC-FM) |
+
+### Services on Piggyback Hosts (per node)
+
+| Service | Description |
+|---------|-------------|
+| `NFM-T Fault Manager Alarms` | Node-specific alarms with severity |
+| `NFM-T Service {id}` | Connection/path services where this node is an endpoint |
+
+### Service Monitoring
+
+Services from `/oms1350/data/otn/connection/path` are monitored on both endpoint nodes:
+- Service name: `NFM-T Service {id}` (stable identifier)
+- Service details include: guiLabel, effectiveRate, port labels
+- **Up state**: Monitored using `alarmSeverity` (Cleared=OK, Minor=WARN, Major/Critical=CRIT)
+- **Not Up state**: Shown as UNKNOWN (gray)
+
+### Data Sources
+
+| API Endpoint | Data |
+|--------------|------|
+| `/oms1350/data/otn/node/` | Node list (piggyback hosts) |
+| `/FaultManagement/rest/api/v2/alarms/details` | Alarms per node |
+| `/oms1350/data/otn/connection/path` | Services/connections |
 
 ## Development and Testing
 
@@ -104,10 +140,15 @@ local/lib/python3/cmk_addons/plugins/oposs_nfm_t/
 
 ## Metrics
 
-The plugin provides the following metrics per node:
+### Per Node (Piggyback Host)
 - `oposs_nfm_t_alarm_count`: Total number of active alarms
 - `oposs_nfm_t_error_count`: Number of critical/major alarms
 - `oposs_nfm_t_warning_count`: Number of minor/warning alarms
+
+### System Alarms (NFM-T Host)
+- `oposs_nfm_t_system_alarm_count`: Total system alarms
+- `oposs_nfm_t_system_error_count`: Critical/major system alarms
+- `oposs_nfm_t_system_warning_count`: Minor/warning system alarms
 
 ## Migration from v0.3.0
 

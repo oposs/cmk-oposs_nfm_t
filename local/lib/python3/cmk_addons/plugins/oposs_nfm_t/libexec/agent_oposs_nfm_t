@@ -410,7 +410,7 @@ class nfmTFetcher:
         }]
 
     def __postprocess(self, alarms, nodes, services):
-        """Process the data from NFM-T API into the desired output format"""
+        """Process the data from NFM-T API into piggyback output format"""
         try:
             SEVERITY_LEVELS = {
                 'critical': 4,
@@ -420,66 +420,165 @@ class nfmTFetcher:
                 'ok': 0
             }
 
-            node_status = {}
-            # Sort alarms by severity in descending order
+            # Build node alarms dictionary
+            node_alarms = {}
             sorted_alarms = sorted(
                 alarms.get('response', {}).get('data', []),
                 key=lambda x: SEVERITY_LEVELS.get(x.get('severity', 'ok'), 0),
                 reverse=True
             )
-            
+
             for alarm in sorted_alarms:
                 ne_name = alarm.get('neName')
                 if not ne_name:
                     LOGGER.warning(f"Alarm without neName: {alarm}")
                     continue
-                    
+
                 current_severity = alarm.get('severity', 'ok').lower()
-                
-                if ne_name not in node_status:
-                    node_status[ne_name] = {
-                        'severity': current_severity,
-                        'alarms': []
-                    }
-                
-                node_status[ne_name]['alarms'].append({
+
+                if ne_name not in node_alarms:
+                    node_alarms[ne_name] = []
+
+                node_alarms[ne_name].append({
                     'summary': alarm.get('additionalText', 'No additional text'),
                     'severity': current_severity
                 })
-            
-            result = []
+
+            # Build services dictionary per node (services appear on both endpoints)
+            node_services = {}
+            for service in services.get('items', []):
+                service_id = service.get('id')
+                if not service_id:
+                    LOGGER.warning(f"Service without id: {service}")
+                    continue
+
+                # Extract relevant fields for the service
+                service_data = {
+                    'id': service_id,
+                    'guiLabel': service.get('guiLabel', ''),
+                    'operationalState': service.get('operationalState', ''),
+                    'alarmState': service.get('alarmState', 'Cleared'),
+                    'alarmSeverity': service.get('alarmSeverity', 'Cleared'),
+                    'aPortLabel': service.get('aPortLabel', ''),
+                    'zPortLabel': service.get('zPortLabel', ''),
+                    'effectiveRate': service.get('effectiveRate', ''),
+                    'a1NodeName': service.get('a1NodeName', ''),
+                    'z1NodeName': service.get('z1NodeName', ''),
+                }
+
+                # Add service to a-side node
+                a_node = service.get('a1NodeName')
+                if a_node:
+                    if a_node not in node_services:
+                        node_services[a_node] = []
+                    node_services[a_node].append({**service_data, 'role': 'a'})
+
+                # Add service to z-side node
+                z_node = service.get('z1NodeName')
+                if z_node:
+                    if z_node not in node_services:
+                        node_services[z_node] = []
+                    node_services[z_node].append({**service_data, 'role': 'z'})
+
+            # Collect all known node names
+            known_nodes = set()
             for node in nodes.get('items', []):
-                if not node.get('guiLabel'):
+                if node.get('guiLabel'):
+                    known_nodes.add(node['guiLabel'])
+
+            # Find unassigned alarms (alarms for nodes not in the node list, e.g., MNC-FM)
+            unassigned_alarms = []
+            for ne_name, alarms_list in node_alarms.items():
+                if ne_name not in known_nodes:
+                    for alarm in alarms_list:
+                        alarm['neName'] = ne_name  # Include the source name
+                        unassigned_alarms.append(alarm)
+
+            # Build result structure
+            result = {
+                'agent_status': {
+                    'status': 'ok',
+                    'node_count': len(nodes.get('items', []))
+                },
+                'unassigned_alarms': unassigned_alarms,
+                'nodes': {}
+            }
+
+            for node in nodes.get('items', []):
+                node_name = node.get('guiLabel')
+                if not node_name:
                     LOGGER.warning(f"Node without guiLabel: {node}")
                     continue
-                    
-                alarm_entries = []
-                status = node_status.get(node['guiLabel'], {})
-                if status.get('alarms'):
-                    alarm_entries = status['alarms']
-                
-                result.append({
-                    "node": node['guiLabel'],
-                    "alarms": alarm_entries if alarm_entries else [{'severity': 'ok', 'summary': 'No active Alarms'}]
-                })
 
-            if not result:
+                # Get alarms for this node (default to "ok" if none)
+                alarms_list = node_alarms.get(node_name, [])
+                if not alarms_list:
+                    alarms_list = [{'severity': 'ok', 'summary': 'No active Alarms'}]
+
+                # Get services for this node
+                services_list = node_services.get(node_name, [])
+
+                result['nodes'][node_name] = {
+                    'alarms': alarms_list,
+                    'services': services_list
+                }
+
+            if not result['nodes']:
                 LOGGER.warning("No nodes found in the processed data")
                 return self.__generate_error_output("NO_NODES", "No nodes found in the API response")
-                
+
             return result
-            
+
         except Exception as e:
             LOGGER.error(f"Error in postprocessing: {e}")
             LOGGER.debug(traceback.format_exc())
             raise NFMTDataError(f"Failed to process data: {e}")
 
 
+def output_piggyback(data):
+    """Output data in CheckMK piggyback format"""
+    # Output agent status section (for the NFM-T host itself)
+    # Include unassigned alarms (e.g., MNC-FM system alarms)
+    agent_data = {
+        **data['agent_status'],
+        'unassigned_alarms': data.get('unassigned_alarms', [])
+    }
+    sys.stdout.write("<<<oposs_nfm_t:sep(0)>>>\n")
+    sys.stdout.write(json.dumps(agent_data, sort_keys=True, separators=(',', ':')) + "\n")
+
+    # Output piggyback sections for each node
+    for node_name, node_data in data['nodes'].items():
+        # Start piggyback section for this node
+        sys.stdout.write(f"<<<<{node_name}>>>>\n")
+
+        # Output node alarms section
+        sys.stdout.write("<<<oposs_nfm_t_node:sep(0)>>>\n")
+        sys.stdout.write(json.dumps({'alarms': node_data['alarms']}, sort_keys=True, separators=(',', ':')) + "\n")
+
+        # Output services section (one JSON line per service)
+        sys.stdout.write("<<<oposs_nfm_t_service:sep(0)>>>\n")
+        for service in node_data['services']:
+            sys.stdout.write(json.dumps(service, sort_keys=True, separators=(',', ':')) + "\n")
+
+        # End piggyback section
+        sys.stdout.write("<<<<>>>>\n")
+
+
+def output_error(error_type, error_message):
+    """Output error in CheckMK format"""
+    sys.stdout.write("<<<oposs_nfm_t:sep(0)>>>\n")
+    sys.stdout.write(json.dumps({
+        "status": "error",
+        "error_type": error_type,
+        "error_message": str(error_message)
+    }, sort_keys=True, separators=(',', ':')) + "\n")
+
+
 def main(argv=None):
+    args = None
     try:
         replace_passwords()
         args = parse_arguments(argv or sys.argv[1:])
-        sys.stdout.write("<<<oposs_nfm_t:sep(0)>>>\n")
 
         # Disable SSL warnings if certificate verification is disabled
         if args.no_cert_check:
@@ -487,64 +586,46 @@ def main(argv=None):
 
         # Initialize fetcher with retry count, port, and cert check from args
         fetcher = nfmTFetcher(args.hostaddress, args.username, args.password, args.retries, args.port, args.no_cert_check)
-        
-        # Fetch data and output
-        for session in fetcher.fetch():
-            # turn the session content into a single line json string
-            sys.stdout.write(json.dumps(session, sort_keys=True, separators=(',', ':')) + "\n")
-            
+
+        # Fetch data
+        data = fetcher.fetch()
+
+        # Check if we got an error response (legacy format from __generate_error_output)
+        if isinstance(data, list):
+            # Legacy error format - convert to new format
+            output_error("FETCH_ERROR", data[0].get('alarms', [{}])[0].get('summary', 'Unknown error'))
+            sys.exit(CHECK_MK_CRIT)
+
+        # Output in piggyback format
+        output_piggyback(data)
         sys.exit(CHECK_MK_OK)
-        
+
     except NFMTConnectionError as e:
         LOGGER.error(f"Connection error: {e}")
-        if args.debug:
+        if args and args.debug:
             sys.stderr.write(traceback.format_exc())
-        sys.stdout.write(json.dumps({
-            "node": "NFM-T_AGENT",
-            "alarms": [{
-                "severity": "critical",
-                "summary": f"Connection Error: {e}"
-            }]
-        }, sort_keys=True, separators=(',', ':')) + "\n")
+        output_error("CONNECTION_ERROR", e)
         sys.exit(CHECK_MK_CRIT)
-        
+
     except NFMTAuthenticationError as e:
         LOGGER.error(f"Authentication error: {e}")
-        if args.debug:
+        if args and args.debug:
             sys.stderr.write(traceback.format_exc())
-        sys.stdout.write(json.dumps({
-            "node": "NFM-T_AGENT",
-            "alarms": [{
-                "severity": "critical", 
-                "summary": f"Authentication Error: {e}"
-            }]
-        }, sort_keys=True, separators=(',', ':')) + "\n")
+        output_error("AUTH_ERROR", e)
         sys.exit(CHECK_MK_CRIT)
-        
+
     except (NFMTAPIError, NFMTDataError) as e:
         LOGGER.error(f"API or data error: {e}")
-        if args.debug:
+        if args and args.debug:
             sys.stderr.write(traceback.format_exc())
-        sys.stdout.write(json.dumps({
-            "node": "NFM-T_AGENT",
-            "alarms": [{
-                "severity": "critical",
-                "summary": f"API/Data Error: {e}"
-            }]
-        }, sort_keys=True, separators=(',', ':')) + "\n")
+        output_error("API_ERROR", e)
         sys.exit(CHECK_MK_CRIT)
-        
+
     except Exception as e:
         LOGGER.error(f"Unexpected error: {e}")
-        if args.debug:
+        if args and args.debug:
             sys.stderr.write(traceback.format_exc())
-        sys.stdout.write(json.dumps({
-            "node": "NFM-T_AGENT", 
-            "alarms": [{
-                "severity": "critical",
-                "summary": f"Unexpected Error: {e}"
-            }]
-        }, sort_keys=True, separators=(',', ':')) + "\n")
+        output_error("UNKNOWN_ERROR", e)
         sys.exit(CHECK_MK_UNKNOWN)
 
 

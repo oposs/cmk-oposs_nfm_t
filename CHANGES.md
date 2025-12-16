@@ -8,8 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### New
+- **Piggyback support**: Each NFM-T node now becomes a virtual host in Checkmk
+- **Service monitoring**: Connection/path services from `/oms1350/data/otn/connection/path` are now monitored
+  - Services appear on both endpoint nodes (a1NodeName and z1NodeName)
+  - Service name uses stable ID: `NFM-T Service {id}`
+  - Service details show guiLabel, effectiveRate, and port labels
+  - Non-Up services shown as UNKNOWN (gray)
+- **System Alarms service**: Alarms not assigned to any node (e.g., MNC-FM) are shown on the NFM-T host
+- New check sections: `oposs_nfm_t_node` (node alarms), `oposs_nfm_t_service` (connection services)
+- New metrics: `oposs_nfm_t_system_alarm_count`, `oposs_nfm_t_system_error_count`, `oposs_nfm_t_system_warning_count`
 
 ### Changed
+- Agent output now uses piggyback format with `<<<<hostname>>>>` markers
+- Main NFM-T host now only shows AGENT STATUS and System Alarms
+- Node alarms moved to piggyback hosts under "NFM-T Fault Manager Alarms" service
 
 ### Fixed
 
