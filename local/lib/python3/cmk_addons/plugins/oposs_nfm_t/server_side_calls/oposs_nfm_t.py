@@ -22,6 +22,7 @@ class Params(BaseModel):
     password: Secret
     port: int | None = None
     no_cert_check: bool = False
+    severity_mapping: dict[str, str] | None = None
 
 
 def commands_function(
@@ -45,6 +46,13 @@ def commands_function(
     # Optional certificate verification disable
     if params.no_cert_check:
         args.append("--no-cert-check")
+
+    # Optional fault-management severity -> state mapping
+    if params.severity_mapping:
+        for severity in ("critical", "major", "minor"):
+            state = params.severity_mapping.get(severity)
+            if state:
+                args.extend([f"--severity-{severity}", state])
 
     # Host address (from CheckMK host config)
     args.append(host_config.name)

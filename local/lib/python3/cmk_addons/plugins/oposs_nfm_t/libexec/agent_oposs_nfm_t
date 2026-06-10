@@ -29,6 +29,12 @@ CHECK_MK_WARN = 1
 CHECK_MK_CRIT = 2
 CHECK_MK_UNKNOWN = 3
 
+# Mapping from state names (CLI/ruleset) to Checkmk state integers
+STATE_NAME_TO_INT = {"ok": 0, "warn": 1, "crit": 2, "unknown": 3}
+
+# Default fault-management severity -> Checkmk state (matches the ruleset defaults)
+DEFAULT_SEVERITY_STATE = {"critical": 2, "major": 1, "minor": 0}
+
 # Constants for retry logic
 MAX_RETRIES = 3
 RETRY_DELAY = 2  # seconds between retries
@@ -48,6 +54,14 @@ def parse_arguments(argv):
     parser.add_argument(
         "--no-cert-check", action="store_true", help="Disable SSL certificate verification (insecure)"
     )
+    # Fault-management severity -> Checkmk state mapping (defaults match the ruleset)
+    for severity, default in (("critical", "crit"), ("major", "warn"), ("minor", "ok")):
+        parser.add_argument(
+            f"--severity-{severity}",
+            choices=["ok", "warn", "crit", "unknown"],
+            default=default,
+            help=f"Checkmk state for Nokia '{severity}' alarms (default: {default})",
+        )
     parser.add_argument(
         "-d", "--debug", action="store_true", help="Debug mode: raise Python exceptions"
     )
@@ -107,7 +121,7 @@ class NFMTDataError(Exception):
 
 
 class nfmTFetcher:
-    def __init__(self, hostaddress, username, password, max_retries=MAX_RETRIES, port=443, no_cert_check=False) -> None:  # type:ignore[no-untyped-def]
+    def __init__(self, hostaddress, username, password, max_retries=MAX_RETRIES, port=443, no_cert_check=False, severity_state=None) -> None:  # type:ignore[no-untyped-def]
         # Use the provided port in the endpoint
         self._endpoint = "https://%s:%d/" % (hostaddress, port)
         self._testmode = hostaddress == "test"
@@ -117,6 +131,8 @@ class nfmTFetcher:
         self._username = username
         self._password = password
         self._verify_ssl = not no_cert_check
+        # Fault-management severity -> Checkmk state integer
+        self._severity_state = severity_state or dict(DEFAULT_SEVERITY_STATE)
         
         if self._testmode:
             LOGGER.info("Running in test mode with host 'test'")
@@ -409,6 +425,13 @@ class nfmTFetcher:
             }]
         }]
 
+    def _alarm_state(self, severity):
+        """Map a Nokia alarm severity to a Checkmk state integer."""
+        sev = (severity or "ok").lower()
+        if sev in ("ok", "cleared"):
+            return 0
+        return self._severity_state.get(sev, CHECK_MK_UNKNOWN)
+
     def __postprocess(self, alarms, nodes, services):
         """Process the data from NFM-T API into piggyback output format"""
         try:
@@ -429,10 +452,10 @@ class nfmTFetcher:
             )
 
             for alarm in sorted_alarms:
-                ne_name = alarm.get('neName')
-                if not ne_name:
-                    LOGGER.warning(f"Alarm without neName: {alarm}")
-                    continue
+                # Alarms without an neName (e.g. NSP/adapter-level alarms) must not be
+                # dropped - route them to a fallback bucket so they surface in the
+                # central "System Alarms" service instead of being lost.
+                ne_name = alarm.get('neName') or alarm.get('neId') or 'NFM-T'
 
                 current_severity = alarm.get('severity', 'ok').lower()
 
@@ -441,7 +464,8 @@ class nfmTFetcher:
 
                 node_alarms[ne_name].append({
                     'summary': alarm.get('additionalText', 'No additional text'),
-                    'severity': current_severity
+                    'severity': current_severity,
+                    'state': self._alarm_state(current_severity)
                 })
 
             # Build services dictionary per node (services appear on both endpoints)
@@ -513,7 +537,7 @@ class nfmTFetcher:
                 # Get alarms for this node (default to "ok" if none)
                 alarms_list = node_alarms.get(node_name, [])
                 if not alarms_list:
-                    alarms_list = [{'severity': 'ok', 'summary': 'No active Alarms'}]
+                    alarms_list = [{'severity': 'ok', 'summary': 'No active Alarms', 'state': 0}]
 
                 # Get services for this node
                 services_list = node_services.get(node_name, [])
@@ -584,8 +608,15 @@ def main(argv=None):
         if args.no_cert_check:
             requests.packages.urllib3.disable_warnings()
 
+        # Build severity -> Checkmk state map from CLI args
+        severity_state = {
+            "critical": STATE_NAME_TO_INT[args.severity_critical],
+            "major": STATE_NAME_TO_INT[args.severity_major],
+            "minor": STATE_NAME_TO_INT[args.severity_minor],
+        }
+
         # Initialize fetcher with retry count, port, and cert check from args
-        fetcher = nfmTFetcher(args.hostaddress, args.username, args.password, args.retries, args.port, args.no_cert_check)
+        fetcher = nfmTFetcher(args.hostaddress, args.username, args.password, args.retries, args.port, args.no_cert_check, severity_state)
 
         # Fetch data
         data = fetcher.fetch()

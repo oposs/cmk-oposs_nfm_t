@@ -35,6 +35,22 @@ SEVERITY_MAP = {
 }
 
 
+def _alarm_state(alarm: Mapping[str, Any], severity: str) -> State:
+    """Resolve the Checkmk state for a fault-management alarm.
+
+    The special agent applies the configurable severity->state mapping and
+    emits a numeric ``state``. Fall back to the static map for older agent
+    output that does not carry it yet.
+    """
+    raw_state = alarm.get("state")
+    if raw_state is not None:
+        try:
+            return State(int(raw_state))
+        except (ValueError, TypeError):
+            pass
+    return SEVERITY_MAP.get(severity, State.UNKNOWN)
+
+
 # =============================================================================
 # SECTION 1: Main NFM-T Agent Status (on NFM-T host)
 # =============================================================================
@@ -112,7 +128,7 @@ def check_oposs_nfm_t(item: str, section: Section) -> CheckResult:
         for alarm in unassigned:
             severity = alarm.get("severity", "ok").lower()
             ne_name = alarm.get("neName", "unknown")
-            state = SEVERITY_MAP.get(severity, State.UNKNOWN)
+            state = _alarm_state(alarm, severity)
 
             if state != State.OK:
                 alarm_count += 1
@@ -189,7 +205,7 @@ def check_oposs_nfm_t_node(item: str, section: Section) -> CheckResult:
 
     for alarm in alarms:
         severity = alarm.get("severity", "ok").lower()
-        state = SEVERITY_MAP.get(severity, State.UNKNOWN)
+        state = _alarm_state(alarm, severity)
 
         if state != State.OK:
             alarm_count += 1

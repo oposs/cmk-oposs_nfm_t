@@ -14,11 +14,27 @@ from cmk.rulesets.v1.form_specs import (
     Dictionary,
     Integer,
     Password,
+    SingleChoice,
+    SingleChoiceElement,
     String,
     migrate_to_password,
     validators,
 )
 from cmk.rulesets.v1.rule_specs import SpecialAgent, Topic
+
+
+def _state_choice(title: Title, default: str) -> SingleChoice:
+    """Dropdown mapping a Nokia severity to a Checkmk monitoring state."""
+    return SingleChoice(
+        title=title,
+        elements=[
+            SingleChoiceElement(name="ok", title=Title("OK")),
+            SingleChoiceElement(name="warn", title=Title("WARN")),
+            SingleChoiceElement(name="crit", title=Title("CRITICAL")),
+            SingleChoiceElement(name="unknown", title=Title("UNKNOWN")),
+        ],
+        prefill=DefaultValue(default),
+    )
 
 
 def _formspec():
@@ -59,6 +75,39 @@ def _formspec():
                     prefill=DefaultValue(False),
                 ),
                 required=True,
+            ),
+            "severity_mapping": DictElement(
+                parameter_form=Dictionary(
+                    title=Title("Fault-management alarm severity mapping"),
+                    help_text=Help(
+                        "Map Nokia NFM-T fault-management alarm severities to Checkmk "
+                        "monitoring states. Applies to the node 'Fault Manager Alarms' "
+                        "and the 'System Alarms' services only, not to the connection-path "
+                        "services. An alarm mapped to OK is still listed but does not affect "
+                        "the service state (e.g. to silence noisy 'minor' alarms)."
+                    ),
+                    elements={
+                        "critical": DictElement(
+                            parameter_form=_state_choice(
+                                Title("Nokia 'critical' maps to"), "crit"
+                            ),
+                            required=True,
+                        ),
+                        "major": DictElement(
+                            parameter_form=_state_choice(
+                                Title("Nokia 'major' maps to"), "warn"
+                            ),
+                            required=True,
+                        ),
+                        "minor": DictElement(
+                            parameter_form=_state_choice(
+                                Title("Nokia 'minor' maps to"), "ok"
+                            ),
+                            required=True,
+                        ),
+                    },
+                ),
+                required=False,
             ),
         },
     )

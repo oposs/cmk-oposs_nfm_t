@@ -8,10 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### New
+- **Configurable alarm severity mapping**: New "Fault-management alarm severity mapping"
+  option in the OPOSS NFM-T special-agent rule lets you map each Nokia severity
+  (critical / major / minor) to a Checkmk state. Defaults: `critical → CRIT`,
+  `major → WARN`, `minor → OK`. Alarms mapped to OK are still listed in the service
+  details but no longer affect the service state or alarm counts (silences noisy
+  `minor` alarms). Applies to the node "Fault Manager Alarms" and "System Alarms"
+  services only, not to the connection-path services.
 
 ### Changed
+- Default severity mapping for fault-management alarms changed: `major` now maps to
+  WARN (was CRIT) and `minor` now maps to OK (was WARN). Use the new severity-mapping
+  option to restore the previous behaviour if needed.
 
 ### Fixed
+- Alarms without an `neName` (e.g. NSP/adapter-level alarms) were silently dropped.
+  They now fall back to the central "System Alarms" service (keyed by `neId`, or
+  `NFM-T` if neither is present) so they are no longer lost.
 
 ## 2.0.0 - 2025-12-16
 ### New
