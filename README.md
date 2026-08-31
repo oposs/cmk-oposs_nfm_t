@@ -161,7 +161,7 @@ Version 0.4.0 is a **breaking change** that requires Checkmk 2.4+. If upgrading 
 
 ## License
 
-GNU General Public License v2
+GNU General Public License v2 - OETIKER+PARTNER AG. See [LICENSE](LICENSE).
 
 ## Author
 
