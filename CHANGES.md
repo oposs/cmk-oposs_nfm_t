@@ -8,8 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### New
+- The package carries the release version in its check plugin (`__version__`).
 
 ### Changed
+- The package installs only on Checkmk 2.4.0p1 or newer; it accepted
+  Checkmk 2.3.0 before, although the README asks for 2.4.
 - Licence is now GNU General Public License v2, matching the headers
   the source files carry. The `LICENSE` file previously held the MIT
   text, which contradicted them.

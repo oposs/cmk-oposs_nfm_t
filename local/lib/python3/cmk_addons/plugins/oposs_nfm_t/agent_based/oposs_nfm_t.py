@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright (C) 2025 OETIKER+PARTNER AG - License: GNU General Public License v2
 
 """
@@ -8,7 +7,8 @@ Supports piggyback for individual nodes with their alarms and services
 """
 
 import json
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 from cmk.agent_based.v2 import (
     AgentSection,
@@ -21,6 +21,10 @@ from cmk.agent_based.v2 import (
     State,
     StringTable,
 )
+
+# Create release PR writes the released version here (version_files in
+# .github/repo-infra.json)
+__version__ = "2.1.0"
 
 Section = Mapping[str, Any]
 
@@ -75,7 +79,7 @@ def parse_oposs_nfm_t(string_table: StringTable) -> Section:
                     parsed["error"] = f"{data.get('error_type', 'ERROR')}: {data.get('error_message', 'Unknown error')}"
             except json.JSONDecodeError:
                 pass
-    except Exception:
+    except Exception:  # noqa: BLE001, S110 -- a broken agent line must not break the parse
         pass
 
     return parsed
@@ -175,7 +179,7 @@ def parse_oposs_nfm_t_node(string_table: StringTable) -> Section:
                 parsed["alarms"] = data.get("alarms", [])
             except json.JSONDecodeError:
                 pass
-    except Exception:
+    except Exception:  # noqa: BLE001, S110 -- a broken agent line must not break the parse
         pass
 
     return parsed
@@ -255,7 +259,7 @@ def parse_oposs_nfm_t_service(string_table: StringTable) -> Section:
                     parsed["services"][service_id] = data
             except json.JSONDecodeError:
                 pass
-    except Exception:
+    except Exception:  # noqa: BLE001, S110 -- a broken agent line must not break the parse
         pass
 
     return parsed
@@ -287,7 +291,6 @@ def check_oposs_nfm_t_service(item: str, params: Mapping[str, Any], section: Sec
     a_port = service.get("aPortLabel", "")
     z_port = service.get("zPortLabel", "")
     effective_rate = service.get("effectiveRate", "")
-    role = service.get("role", "")
 
     # Build info text
     info_parts = []
