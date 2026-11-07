@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright (C) 2025 OETIKER+PARTNER AG - License: GNU General Public License v2
 
 """
@@ -6,7 +5,7 @@ Ruleset configuration for NFM-T special agent
 Provides GUI configuration form for NFM-T monitoring parameters
 """
 
-from cmk.rulesets.v1 import Title, Help, Label
+from cmk.rulesets.v1 import Help, Label, Title
 from cmk.rulesets.v1.form_specs import (
     BooleanChoice,
     DefaultValue,
