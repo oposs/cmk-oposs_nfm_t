@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### New
+- The package carries the release version in its check plugin (`__version__`).
 
 ### Changed
 - The package installs only on Checkmk 2.4.0p1 or newer; it accepted
