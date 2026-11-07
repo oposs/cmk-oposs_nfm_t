@@ -187,9 +187,12 @@ def test_argument_defaults(agent):
     assert (args.severity_critical, args.severity_major, args.severity_minor) == ("crit", "warn", "ok")
 
 
-def test_unknown_severity_state_is_rejected(agent):
-    with pytest.raises(SystemExit):
-        agent.parse_arguments(["-u", "u", "-p", "p", "--severity-major", "red", "h"])
+def test_unknown_severity_state_is_rejected(agent, capsys):
+    # Nothing useful is printed, so the agent fails and Checkmk shows that
+    with pytest.raises(SystemExit) as exit_info:
+        agent.main(["-u", "u", "-p", "p", "--severity-major", "red", "h"])
+    assert exit_info.value.code != 0
+    assert capsys.readouterr().out == ""
 
 
 # --- talking to NFM-T ----------------------------------------------------------
@@ -277,8 +280,6 @@ def test_severity_mapping_reaches_the_alarms(agent, nfmt, capsys):
     assert [a["state"] for a in json.loads(status[0])["unassigned_alarms"]] == [3, 1]
 
 
-@pytest.mark.xfail(strict=True, reason="BUG: the agent gives a Nokia 'warning' alarm state UNKNOWN; "
-                   "the README and the check's own severity map say WARN")
 def test_warning_alarm_is_warn(agent):
     fetcher = agent.nfmTFetcher("test", "u", "p")
     assert fetcher._alarm_state("warning") == agent.CHECK_MK_WARN
@@ -303,31 +304,35 @@ def test_dns_failure_reports_a_connection_error(agent, nfmt, monkeypatch, capsys
         raise agent.socket.gaierror(-2, "Name or service not known")
 
     monkeypatch.setattr(agent.socket, "gethostbyname", fail)
-    _, out = _run(agent, capsys)
+    code, out = _run(agent, capsys)
     row = _error_row(out)
     assert row["status"] == "error"
     assert row["error_type"] == "CONNECTION_ERROR"
     assert "DNS resolution failed for host 'nfmt.example.net'" in row["error_message"]
+    assert code == 0
 
 
 def test_bad_credentials_report_an_auth_error(agent, nfmt, monkeypatch, capsys):
     monkeypatch.setattr(agent.requests, "post", lambda url, **kw: _Response({}, 401))
-    _, out = _run(agent, capsys)
+    code, out = _run(agent, capsys)
     assert _error_row(out)["error_type"] == "AUTH_ERROR"
+    assert code == 0
 
 
 def test_api_failure_reports_a_fetch_error(agent, nfmt, capsys):
     nfmt.answers.pop("oms1350/data/otn/node/")
-    _, out = _run(agent, capsys)
+    code, out = _run(agent, capsys)
     row = _error_row(out)
     assert row["error_type"] == "FETCH_ERROR"
     assert "Failed to fetch nodes" in row["error_message"]
+    assert code == 0
 
 
 def test_no_nodes_reports_an_error(agent, nfmt, capsys):
     nfmt.answers["oms1350/data/otn/node/"] = {"items": []}
-    _, out = _run(agent, capsys)
+    code, out = _run(agent, capsys)
     assert "No nodes found" in _error_row(out)["error_message"]
+    assert code == 0
 
 
 def test_connection_retries_then_gives_up(agent, nfmt, monkeypatch, capsys):
@@ -338,14 +343,12 @@ def test_connection_retries_then_gives_up(agent, nfmt, monkeypatch, capsys):
         raise agent.requests.ConnectionError("refused")
 
     monkeypatch.setattr(agent.requests, "post", refuse)
-    _, out = _run(agent, capsys, "--retries", "2")
+    code, out = _run(agent, capsys, "--retries", "2")
     assert len(attempts) == 2
     assert _error_row(out)["error_type"] == "CONNECTION_ERROR"
+    assert code == 0
 
 
-@pytest.mark.xfail(strict=True, reason="BUG: the agent exits 2 after printing its error section; "
-                   "Checkmk discards the output of a special agent that exits non-zero, "
-                   "so NFM-T AGENT STATUS never shows the error")
 def test_error_output_reaches_checkmk(agent, nfmt, monkeypatch, capsys):
     monkeypatch.setattr(agent.requests, "post", lambda url, **kw: _Response({}, 401))
     code, out = _run(agent, capsys)
@@ -353,6 +356,17 @@ def test_error_output_reaches_checkmk(agent, nfmt, monkeypatch, capsys):
     # cmk/fetchers/_program.py (2.4.0): a non-zero exit code raises
     # MKFetcherError("Agent exited with code ...") and drops stdout
     assert code == 0
+
+
+def test_unexpected_error_reports_and_exits_0(agent, nfmt, monkeypatch, capsys):
+    def explode(url, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(agent.requests, "post", explode)
+    code, out = _run(agent, capsys)
+    assert code == 0
+    row = _error_row(out)
+    assert (row["error_type"], row["error_message"]) == ("UNKNOWN_ERROR", "boom")
 
 
 # --- agent output through the check ------------------------------------------

@@ -18,6 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   text, which contradicted them.
 
 ### Fixed
+- A Nokia alarm of severity "warning" turned "NFM-T Fault Manager Alarms"
+  or "NFM-T System Alarms" UNKNOWN. It now counts as WARN, as the README
+  says.
+- When the NFM-T API failed, "NFM-T AGENT STATUS" did not show the
+  reason, and the Check_MK service reported "Agent exited with code 2"
+  instead. The special agent now exits normally after it reports the
+  error, so "NFM-T AGENT STATUS" turns CRIT with the reason.
 
 ## 2.1.0 - 2026-06-10
 ### New
