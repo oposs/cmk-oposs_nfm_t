@@ -277,8 +277,6 @@ def test_severity_mapping_reaches_the_alarms(agent, nfmt, capsys):
     assert [a["state"] for a in json.loads(status[0])["unassigned_alarms"]] == [3, 1]
 
 
-@pytest.mark.xfail(strict=True, reason="BUG: the agent gives a Nokia 'warning' alarm state UNKNOWN; "
-                   "the README and the check's own severity map say WARN")
 def test_warning_alarm_is_warn(agent):
     fetcher = agent.nfmTFetcher("test", "u", "p")
     assert fetcher._alarm_state("warning") == agent.CHECK_MK_WARN

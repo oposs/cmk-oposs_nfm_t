@@ -430,6 +430,9 @@ class nfmTFetcher:
         sev = (severity or "ok").lower()
         if sev in ("ok", "cleared"):
             return 0
+        if sev == "warning":
+            # Not in the severity mapping rule; the check maps it to WARN too
+            return CHECK_MK_WARN
         return self._severity_state.get(sev, CHECK_MK_UNKNOWN)
 
     def __postprocess(self, alarms, nodes, services):

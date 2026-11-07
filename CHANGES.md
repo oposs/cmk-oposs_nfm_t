@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   text, which contradicted them.
 
 ### Fixed
+- A Nokia alarm of severity "warning" turned "NFM-T Fault Manager Alarms"
+  or "NFM-T System Alarms" UNKNOWN. It now counts as WARN, as the README
+  says.
 
 ## 2.1.0 - 2026-06-10
 ### New
