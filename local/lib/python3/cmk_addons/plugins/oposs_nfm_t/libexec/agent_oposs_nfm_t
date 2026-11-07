@@ -628,7 +628,10 @@ def main(argv=None):
         if isinstance(data, list):
             # Legacy error format - convert to new format
             output_error("FETCH_ERROR", data[0].get('alarms', [{}])[0].get('summary', 'Unknown error'))
-            sys.exit(CHECK_MK_CRIT)
+            # Exit 0 once the error section is out: Checkmk discards the
+            # output of a special agent that exits non-zero, and the
+            # AGENT STATUS service turns the section into CRIT itself.
+            sys.exit(CHECK_MK_OK)
 
         # Output in piggyback format
         output_piggyback(data)
@@ -639,28 +642,28 @@ def main(argv=None):
         if args and args.debug:
             sys.stderr.write(traceback.format_exc())
         output_error("CONNECTION_ERROR", e)
-        sys.exit(CHECK_MK_CRIT)
+        sys.exit(CHECK_MK_OK)
 
     except NFMTAuthenticationError as e:
         LOGGER.error(f"Authentication error: {e}")
         if args and args.debug:
             sys.stderr.write(traceback.format_exc())
         output_error("AUTH_ERROR", e)
-        sys.exit(CHECK_MK_CRIT)
+        sys.exit(CHECK_MK_OK)
 
     except (NFMTAPIError, NFMTDataError) as e:
         LOGGER.error(f"API or data error: {e}")
         if args and args.debug:
             sys.stderr.write(traceback.format_exc())
         output_error("API_ERROR", e)
-        sys.exit(CHECK_MK_CRIT)
+        sys.exit(CHECK_MK_OK)
 
     except Exception as e:
         LOGGER.error(f"Unexpected error: {e}")
         if args and args.debug:
             sys.stderr.write(traceback.format_exc())
         output_error("UNKNOWN_ERROR", e)
-        sys.exit(CHECK_MK_UNKNOWN)
+        sys.exit(CHECK_MK_OK)
 
 
 if __name__ == "__main__":
