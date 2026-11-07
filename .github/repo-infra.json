@@ -7,5 +7,8 @@
       "replacement": "__version__ = \"$VERSION\"",
       "verify": "^__version__ = \"$VERSION\""
     }
+  ],
+  "release_assets": [
+    "oposs_nfm_t-*.mkp"
   ]
 }
