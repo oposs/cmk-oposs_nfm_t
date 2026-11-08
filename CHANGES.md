@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   text, which contradicted them.
 
 ### Fixed
+- The package still installed the old pre-1.0 check `nfm_t` and special
+  agent `agent_nfm_t` next to the current ones; both fail to load on
+  Checkmk 2.4. They are no longer part of the package.
 - A Nokia alarm of severity "warning" turned "NFM-T Fault Manager Alarms"
   or "NFM-T System Alarms" UNKNOWN. It now counts as WARN, as the README
   says.
