@@ -413,3 +413,11 @@ def test_agent_is_executable_in_git():
                           capture_output=True, text=True, check=True).stdout.split()[0]
     assert mode == "100755"
     assert os.access(AGENT, os.X_OK)
+
+
+def test_no_legacy_plugin_files():
+    # The pre-1.0 legacy check and special agent import cmk.base.check_api
+    # and cmk.special_agents.nfm_t, which Checkmk 2.4 does not have; the
+    # MKP must not ship them again
+    assert not (ROOT / "local/share/check_mk/checks").exists()
+    assert not (ROOT / "local/share/check_mk/agents/special").exists()
