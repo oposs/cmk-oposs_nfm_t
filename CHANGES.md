@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### New
+
+### Changed
+
+### Fixed
+
+## 2.2.0 - 2026-11-09
+### New
 - The package carries the release version in its check plugin (`__version__`).
 
 ### Changed

@@ -24,7 +24,7 @@ from cmk.agent_based.v2 import (
 
 # Create release PR writes the released version here (version_files in
 # .github/repo-infra.json)
-__version__ = "2.1.0"
+__version__ = "2.2.0"
 
 Section = Mapping[str, Any]
 
