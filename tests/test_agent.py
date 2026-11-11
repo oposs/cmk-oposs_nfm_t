@@ -266,6 +266,24 @@ def test_capitalised_severities_sort_like_lower_case(agent, nfmt, capsys):
     assert [a["severity"] for a in json.loads(row[0])["alarms"]] == ["critical", "major", "minor"]
 
 
+def test_alarm_with_null_severity_counts_as_ok(agent, nfmt, capsys):
+    nfmt.answers["FaultManagement/rest/api/v2/alarms/details"] = {"response": {"data": [
+        {"neName": "OTN-ZH-01", "severity": None, "additionalText": "Card inserted in slot 4"},
+        {"neName": "OTN-ZH-01", "severity": "critical", "additionalText": "Loss of signal on 1/2/C1"},
+        {"neName": "MNC-FM", "severity": None, "additionalText": "Operator logged in"},
+    ]}}
+    _, out = _run(agent, capsys)
+    hosts = _sections(out)
+    (row,) = hosts["OTN-ZH-01"]["oposs_nfm_t_node"]
+    assert json.loads(row[0])["alarms"] == [
+        {"severity": "critical", "state": 2, "summary": "Loss of signal on 1/2/C1"},
+        {"severity": "ok", "state": 0, "summary": "Card inserted in slot 4"},
+    ]
+    (status,) = hosts[None]["oposs_nfm_t"]
+    assert json.loads(status[0])["unassigned_alarms"] == [
+        {"neName": "MNC-FM", "severity": "ok", "state": 0, "summary": "Operator logged in"}]
+
+
 def test_node_without_alarms_gets_a_placeholder(agent, nfmt, capsys):
     _, out = _run(agent, capsys)
     (row,) = _sections(out)["OTN-GE-03"]["oposs_nfm_t_node"]

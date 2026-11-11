@@ -438,7 +438,8 @@ class nfmTFetcher:
                 # central "System Alarms" service instead of being lost.
                 ne_name = alarm.get('neName') or alarm.get('neId') or 'NFM-T'
 
-                current_severity = alarm.get('severity', 'ok').lower()
+                # NFM-T may send "severity": null; treat it like a missing severity
+                current_severity = (alarm.get('severity') or 'ok').lower()
 
                 if ne_name not in node_alarms:
                     node_alarms[ne_name] = []
