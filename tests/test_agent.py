@@ -422,6 +422,26 @@ def test_check_reads_the_agent_output(agent, check, nfmt, capsys):
         Result(state=State.UNKNOWN, summary="ZH-GE 10G [10GbE] (1/4/C1 <-> 1/1/C2) (not Up: Down)")]
 
 
+def test_no_nodes_still_shows_the_system_alarms(agent, check, nfmt, capsys):
+    nfmt.answers["oms1350/data/otn/node/"] = {"items": []}
+    _, out = _run(agent, capsys)
+    section = check.parse_oposs_nfm_t(_sections(out)[None]["oposs_nfm_t"])
+    (status,) = check.check_oposs_nfm_t("AGENT STATUS", section)
+    assert status.state is State.CRIT
+    assert "No nodes found" in status.summary
+    assert [s.item for s in check.discover_oposs_nfm_t(section)] == ["AGENT STATUS", "System Alarms"]
+    system = [r for r in check.check_oposs_nfm_t("System Alarms", section) if isinstance(r, Result)]
+    # Without a node list every alarm is a system alarm
+    assert [r.summary for r in system] == [
+        "[OTN-ZH-01] Loss of signal on 1/2/C1 [critical]",
+        "[OTN-ZH-01] Fan unit 2 speed low [minor]",
+        "[OTN-BE-02] Signal degrade on 1/3/C1 [major]",
+        "[MNC-FM] Database backup failed [major]",
+        "[NSP-ADAPTER-7] Adapter restarted [minor]",
+    ]
+    assert State.worst(*(r.state for r in system)) is State.CRIT
+
+
 def test_check_reads_the_agent_error(agent, check, nfmt, monkeypatch, capsys):
     monkeypatch.setattr(agent.requests, "post", lambda url, **kw: _Response({}, 401))
     _, out = _run(agent, capsys)

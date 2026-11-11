@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - "NFM-T Fault Manager Alarms" and "NFM-T System Alarms" listed an alarm
   that NFM-T sent with a capitalised severity, such as "Critical", after
   all others. Alarms are now listed most severe first, whatever the case.
+- When NFM-T returned no nodes, "NFM-T System Alarms" showed "No system
+  alarms" although NFM-T had sent alarms. It now lists them, next to the
+  CRIT "No nodes found" in "NFM-T AGENT STATUS".
 
 ## 2.2.0 - 2026-11-09
 ### New

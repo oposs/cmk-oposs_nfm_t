@@ -386,7 +386,7 @@ class nfmTFetcher:
             except:
                 print(f"Warning: Error during token cleanup in destructor: {e}")
 
-    def __generate_error_output(self, error_type, error_message):
+    def __generate_error_output(self, error_type, error_message, unassigned_alarms=None):
         """Generate a properly formatted error output for Check_MK"""
         # Create a standardized error response that the Check_MK plugin can handle
         error_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -395,7 +395,8 @@ class nfmTFetcher:
             "alarms": [{
                 "severity": "critical",
                 "summary": f"Agent Error [{error_type}]: {error_message} at {error_time}"
-            }]
+            }],
+            "unassigned_alarms": unassigned_alarms or [],
         }]
 
     def _alarm_state(self, severity):
@@ -525,7 +526,9 @@ class nfmTFetcher:
 
             if not result['nodes']:
                 LOGGER.warning("No nodes found in the processed data")
-                return self.__generate_error_output("NO_NODES", "No nodes found in the API response")
+                # The alarms were read; keep them in "System Alarms"
+                return self.__generate_error_output("NO_NODES", "No nodes found in the API response",
+                                                    unassigned_alarms)
 
             return result
 
@@ -564,14 +567,17 @@ def output_piggyback(data):
         sys.stdout.write("<<<<>>>>\n")
 
 
-def output_error(error_type, error_message):
+def output_error(error_type, error_message, unassigned_alarms=None):
     """Output error in CheckMK format"""
-    sys.stdout.write("<<<oposs_nfm_t:sep(0)>>>\n")
-    sys.stdout.write(json.dumps({
+    error = {
         "status": "error",
         "error_type": error_type,
         "error_message": str(error_message)
-    }, sort_keys=True, separators=(',', ':')) + "\n")
+    }
+    if unassigned_alarms:
+        error["unassigned_alarms"] = unassigned_alarms
+    sys.stdout.write("<<<oposs_nfm_t:sep(0)>>>\n")
+    sys.stdout.write(json.dumps(error, sort_keys=True, separators=(',', ':')) + "\n")
 
 
 def main(argv=None):
@@ -600,7 +606,8 @@ def main(argv=None):
         # Check if we got an error response (legacy format from __generate_error_output)
         if isinstance(data, list):
             # Legacy error format - convert to new format
-            output_error("FETCH_ERROR", data[0].get('alarms', [{}])[0].get('summary', 'Unknown error'))
+            output_error("FETCH_ERROR", data[0].get('alarms', [{}])[0].get('summary', 'Unknown error'),
+                         data[0].get('unassigned_alarms'))
             # Exit 0 once the error section is out: Checkmk discards the
             # output of a special agent that exits non-zero, and the
             # AGENT STATUS service turns the section into CRIT itself.
