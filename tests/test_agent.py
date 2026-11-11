@@ -13,6 +13,7 @@ import importlib.util
 import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 import types
@@ -27,7 +28,7 @@ AGENT = PLUGIN / "libexec/agent_oposs_nfm_t"
 CHECK = PLUGIN / "agent_based/oposs_nfm_t.py"
 
 
-def _load_agent():
+def _load_agent(path=AGENT, name="agent_oposs_nfm_t"):
     """Load the agent with the one monolith module it needs stubbed.
 
     cmk.utils.password_store exists only inside a Checkmk site. The stub is
@@ -43,7 +44,7 @@ def _load_agent():
     saved = {k: sys.modules.get(k) for k in stubs}
     sys.modules.update(stubs)
     try:
-        loader = SourceFileLoader("agent_oposs_nfm_t", str(AGENT))
+        loader = SourceFileLoader(name, str(path))
         spec = importlib.util.spec_from_loader(loader.name, loader)
         module = importlib.util.module_from_spec(spec)
         loader.exec_module(module)
@@ -470,3 +471,27 @@ def test_no_legacy_plugin_files():
     # MKP must not ship them again
     assert not (ROOT / "local/share/check_mk/checks").exists()
     assert not (ROOT / "local/share/check_mk/agents/special").exists()
+
+
+# --- version -----------------------------------------------------------------
+
+
+def test_agent_carries_the_released_version():
+    # The publish check fails on main when a version file disagrees with
+    # the newest released CHANGES.md heading.
+    released = re.search(r"^## (\d+\.\d+\.\d+)", (ROOT / "CHANGES.md").read_text(),
+                         flags=re.MULTILINE).group(1)
+    assert re.search(rf'^__version__ = "{re.escape(released)}"$', AGENT.read_text(), flags=re.MULTILINE)
+
+
+def test_release_writes_version_into_agent(tmp_path):
+    """Apply the version_files entry of .github/repo-infra.json to the special
+    agent, as Create release PR does (a multiline regex, first match)"""
+    config = json.loads((ROOT / ".github/repo-infra.json").read_text())
+    (spec,) = [f for f in config["version_files"] if (ROOT / f["path"]) == AGENT]
+    stamped = re.sub(spec["pattern"], spec["replacement"].replace("$VERSION", "9.8.7"),
+                     AGENT.read_text(), count=1, flags=re.MULTILINE)
+    assert re.search(spec["verify"].replace("$VERSION", re.escape("9.8.7")), stamped, flags=re.MULTILINE)
+    copy = tmp_path / "agent_stamped"
+    copy.write_text(stamped)
+    assert _load_agent(copy, "agent_stamped").__version__ == "9.8.7"

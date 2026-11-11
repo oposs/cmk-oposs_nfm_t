@@ -21,6 +21,10 @@ from datetime import datetime
 import time
 import socket
 
+# Create release PR writes the released version here (version_files in
+# .github/repo-infra.json)
+__version__ = "2.2.0"
+
 LOGGER = logging.getLogger(__name__)
 
 # Define error states for Check_MK output

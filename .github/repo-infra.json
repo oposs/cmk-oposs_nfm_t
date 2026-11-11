@@ -6,6 +6,12 @@
       "pattern": "^__version__ = \"[^\"]*\"",
       "replacement": "__version__ = \"$VERSION\"",
       "verify": "^__version__ = \"$VERSION\""
+    },
+    {
+      "path": "local/lib/python3/cmk_addons/plugins/oposs_nfm_t/libexec/agent_oposs_nfm_t",
+      "pattern": "^__version__ = \"[^\"]*\"",
+      "replacement": "__version__ = \"$VERSION\"",
+      "verify": "^__version__ = \"$VERSION\""
     }
   ],
   "release_assets": [
