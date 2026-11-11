@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A host named `test` got its NFM-T data from the files
   `/tmp/nfm_t_*.json` on the Checkmk server instead of from NFM-T. The
   special agent now always reads NFM-T, whatever the host is called.
+- "NFM-T Fault Manager Alarms" and "NFM-T System Alarms" listed an alarm
+  that NFM-T sent with a capitalised severity, such as "Critical", after
+  all others. Alarms are now listed most severe first, whatever the case.
 
 ## 2.2.0 - 2026-11-09
 ### New

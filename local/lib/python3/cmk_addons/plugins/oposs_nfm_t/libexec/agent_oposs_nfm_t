@@ -423,7 +423,7 @@ class nfmTFetcher:
             node_alarms = {}
             sorted_alarms = sorted(
                 alarms.get('response', {}).get('data', []),
-                key=lambda x: SEVERITY_LEVELS.get(x.get('severity', 'ok'), 0),
+                key=lambda x: SEVERITY_LEVELS.get((x.get('severity') or 'ok').lower(), 0),
                 reverse=True
             )
 

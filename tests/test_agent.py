@@ -254,6 +254,17 @@ def test_node_alarms_sorted_by_severity(agent, nfmt, capsys):
     ]
 
 
+def test_capitalised_severities_sort_like_lower_case(agent, nfmt, capsys):
+    nfmt.answers["FaultManagement/rest/api/v2/alarms/details"] = {"response": {"data": [
+        {"neName": "OTN-ZH-01", "severity": "Minor", "additionalText": "Fan unit 2 speed low"},
+        {"neName": "OTN-ZH-01", "severity": "major", "additionalText": "Signal degrade on 1/3/C1"},
+        {"neName": "OTN-ZH-01", "severity": "Critical", "additionalText": "Loss of signal on 1/2/C1"},
+    ]}}
+    _, out = _run(agent, capsys)
+    (row,) = _sections(out)["OTN-ZH-01"]["oposs_nfm_t_node"]
+    assert [a["severity"] for a in json.loads(row[0])["alarms"]] == ["critical", "major", "minor"]
+
+
 def test_node_without_alarms_gets_a_placeholder(agent, nfmt, capsys):
     _, out = _run(agent, capsys)
     (row,) = _sections(out)["OTN-GE-03"]["oposs_nfm_t_node"]
