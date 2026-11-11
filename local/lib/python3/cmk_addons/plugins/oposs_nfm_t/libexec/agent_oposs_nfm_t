@@ -9,14 +9,11 @@ import argparse
 import logging
 import sys
 import traceback
-import os
 import json
 import base64
 import urllib.parse  # Use standard library's urllib.parse for URL encoding
 import requests
 from cmk.utils.password_store import replace_passwords
-from pprint import pprint
-import re
 from datetime import datetime
 import time
 import socket

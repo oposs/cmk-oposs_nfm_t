@@ -9,6 +9,7 @@ The last tests feed the agent output through the check plugin, so a format
 change on either side shows up here.
 """
 
+import ast
 import importlib.util
 import json
 import os
@@ -481,6 +482,19 @@ def test_agent_is_executable_in_git():
                           capture_output=True, text=True, check=True).stdout.split()[0]
     assert mode == "100755"
     assert os.access(AGENT, os.X_OK)
+
+
+def test_agent_imports_are_used():
+    # ruff only checks *.py, so it never looks at the extensionless agent
+    tree = ast.parse(AGENT.read_text())
+    imported = set()
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            imported |= {(a.asname or a.name).split(".")[0] for a in node.names}
+        elif isinstance(node, ast.ImportFrom):
+            imported |= {a.asname or a.name for a in node.names}
+    used = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
+    assert imported - used == set()
 
 
 def test_no_legacy_plugin_files():
