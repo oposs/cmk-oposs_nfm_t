@@ -87,20 +87,6 @@ local/lib/python3/cmk_addons/plugins/oposs_nfm_t/libexec/agent_oposs_nfm_t \
     -u username -p 'password' --port 443 your-nfm-t-host
 ```
 
-### Test Mode
-
-If test data files are present in `/tmp`, you can run in test mode:
-
-```bash
-local/lib/python3/cmk_addons/plugins/oposs_nfm_t/libexec/agent_oposs_nfm_t \
-    -u user -p pass -v -d test
-```
-
-Test files needed in `/tmp`:
-- `nfm_t_alarms.json`
-- `nfm_t_nodes.json`
-- `nfm_t_services.json`
-
 ### Reload Plugin
 
 After making changes:

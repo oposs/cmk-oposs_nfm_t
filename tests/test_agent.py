@@ -13,6 +13,7 @@ import importlib.util
 import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 import types
@@ -27,7 +28,7 @@ AGENT = PLUGIN / "libexec/agent_oposs_nfm_t"
 CHECK = PLUGIN / "agent_based/oposs_nfm_t.py"
 
 
-def _load_agent():
+def _load_agent(path=AGENT, name="agent_oposs_nfm_t"):
     """Load the agent with the one monolith module it needs stubbed.
 
     cmk.utils.password_store exists only inside a Checkmk site. The stub is
@@ -43,7 +44,7 @@ def _load_agent():
     saved = {k: sys.modules.get(k) for k in stubs}
     sys.modules.update(stubs)
     try:
-        loader = SourceFileLoader("agent_oposs_nfm_t", str(AGENT))
+        loader = SourceFileLoader(name, str(path))
         spec = importlib.util.spec_from_loader(loader.name, loader)
         module = importlib.util.module_from_spec(spec)
         loader.exec_module(module)
@@ -254,6 +255,17 @@ def test_node_alarms_sorted_by_severity(agent, nfmt, capsys):
     ]
 
 
+def test_capitalised_severities_sort_like_lower_case(agent, nfmt, capsys):
+    nfmt.answers["FaultManagement/rest/api/v2/alarms/details"] = {"response": {"data": [
+        {"neName": "OTN-ZH-01", "severity": "Minor", "additionalText": "Fan unit 2 speed low"},
+        {"neName": "OTN-ZH-01", "severity": "major", "additionalText": "Signal degrade on 1/3/C1"},
+        {"neName": "OTN-ZH-01", "severity": "Critical", "additionalText": "Loss of signal on 1/2/C1"},
+    ]}}
+    _, out = _run(agent, capsys)
+    (row,) = _sections(out)["OTN-ZH-01"]["oposs_nfm_t_node"]
+    assert [a["severity"] for a in json.loads(row[0])["alarms"]] == ["critical", "major", "minor"]
+
+
 def test_node_without_alarms_gets_a_placeholder(agent, nfmt, capsys):
     _, out = _run(agent, capsys)
     (row,) = _sections(out)["OTN-GE-03"]["oposs_nfm_t_node"]
@@ -280,15 +292,33 @@ def test_severity_mapping_reaches_the_alarms(agent, nfmt, capsys):
     assert [a["state"] for a in json.loads(status[0])["unassigned_alarms"]] == [3, 1]
 
 
-def test_warning_alarm_is_warn(agent):
-    fetcher = agent.nfmTFetcher("test", "u", "p")
+@pytest.fixture
+def fetcher(agent, nfmt):
+    fetcher = agent.nfmTFetcher("nfmt.example.net", "u", "p")
+    yield fetcher
+    # Revoke while requests is still patched, not later in __del__
+    fetcher._revoke_token()
+
+
+def test_warning_alarm_is_warn(agent, fetcher):
     assert fetcher._alarm_state("warning") == agent.CHECK_MK_WARN
 
 
-def test_cleared_alarm_is_ok(agent):
-    fetcher = agent.nfmTFetcher("test", "u", "p")
+def test_cleared_alarm_is_ok(agent, fetcher):
     assert fetcher._alarm_state("Cleared") == agent.CHECK_MK_OK
     assert fetcher._alarm_state(None) == agent.CHECK_MK_OK
+
+
+def test_host_named_test_is_read_from_nfmt(agent, nfmt, capsys):
+    # A Checkmk host called "test" once switched the agent to reading
+    # /tmp/nfm_t_*.json on the Checkmk server
+    with pytest.raises(SystemExit):
+        agent.main(["-u", "monitor", "-p", "secret", "test"])
+    assert [url for _, url, _ in nfmt][:2] == [
+        "https://test:443/rest-gateway/rest/api/v1/auth/token",
+        "https://test:443/FaultManagement/rest/api/v2/alarms/details",
+    ]
+    assert "OTN-ZH-01" in _sections(capsys.readouterr().out)
 
 
 # --- errors ----------------------------------------------------------------------
@@ -393,6 +423,26 @@ def test_check_reads_the_agent_output(agent, check, nfmt, capsys):
         Result(state=State.UNKNOWN, summary="ZH-GE 10G [10GbE] (1/4/C1 <-> 1/1/C2) (not Up: Down)")]
 
 
+def test_no_nodes_still_shows_the_system_alarms(agent, check, nfmt, capsys):
+    nfmt.answers["oms1350/data/otn/node/"] = {"items": []}
+    _, out = _run(agent, capsys)
+    section = check.parse_oposs_nfm_t(_sections(out)[None]["oposs_nfm_t"])
+    (status,) = check.check_oposs_nfm_t("AGENT STATUS", section)
+    assert status.state is State.CRIT
+    assert "No nodes found" in status.summary
+    assert [s.item for s in check.discover_oposs_nfm_t(section)] == ["AGENT STATUS", "System Alarms"]
+    system = [r for r in check.check_oposs_nfm_t("System Alarms", section) if isinstance(r, Result)]
+    # Without a node list every alarm is a system alarm
+    assert [r.summary for r in system] == [
+        "[OTN-ZH-01] Loss of signal on 1/2/C1 [critical]",
+        "[OTN-ZH-01] Fan unit 2 speed low [minor]",
+        "[OTN-BE-02] Signal degrade on 1/3/C1 [major]",
+        "[MNC-FM] Database backup failed [major]",
+        "[NSP-ADAPTER-7] Adapter restarted [minor]",
+    ]
+    assert State.worst(*(r.state for r in system)) is State.CRIT
+
+
 def test_check_reads_the_agent_error(agent, check, nfmt, monkeypatch, capsys):
     monkeypatch.setattr(agent.requests, "post", lambda url, **kw: _Response({}, 401))
     _, out = _run(agent, capsys)
@@ -421,3 +471,27 @@ def test_no_legacy_plugin_files():
     # MKP must not ship them again
     assert not (ROOT / "local/share/check_mk/checks").exists()
     assert not (ROOT / "local/share/check_mk/agents/special").exists()
+
+
+# --- version -----------------------------------------------------------------
+
+
+def test_agent_carries_the_released_version():
+    # The publish check fails on main when a version file disagrees with
+    # the newest released CHANGES.md heading.
+    released = re.search(r"^## (\d+\.\d+\.\d+)", (ROOT / "CHANGES.md").read_text(),
+                         flags=re.MULTILINE).group(1)
+    assert re.search(rf'^__version__ = "{re.escape(released)}"$', AGENT.read_text(), flags=re.MULTILINE)
+
+
+def test_release_writes_version_into_agent(tmp_path):
+    """Apply the version_files entry of .github/repo-infra.json to the special
+    agent, as Create release PR does (a multiline regex, first match)"""
+    config = json.loads((ROOT / ".github/repo-infra.json").read_text())
+    (spec,) = [f for f in config["version_files"] if (ROOT / f["path"]) == AGENT]
+    stamped = re.sub(spec["pattern"], spec["replacement"].replace("$VERSION", "9.8.7"),
+                     AGENT.read_text(), count=1, flags=re.MULTILINE)
+    assert re.search(spec["verify"].replace("$VERSION", re.escape("9.8.7")), stamped, flags=re.MULTILINE)
+    copy = tmp_path / "agent_stamped"
+    copy.write_text(stamped)
+    assert _load_agent(copy, "agent_stamped").__version__ == "9.8.7"
