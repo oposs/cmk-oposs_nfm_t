@@ -484,6 +484,11 @@ def test_agent_is_executable_in_git():
     assert os.access(AGENT, os.X_OK)
 
 
+def test_agent_shebang():
+    # Checkmk executes the agent directly, so the kernel reads this line
+    assert AGENT.read_text().split("\n", 1)[0] == "#!/usr/bin/env python3"
+
+
 def test_agent_imports_are_used():
     # ruff only checks *.py, so it never looks at the extensionless agent
     tree = ast.parse(AGENT.read_text())
