@@ -12,8 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   well (`__version__`), like the check plugin.
 
 ### Changed
+- The package no longer ships the metric translation
+  `graphing/translations.py`. It mapped the pre-1.0 metric `alarm_count`
+  for services that no longer exist, so no graph changes.
 
 ### Fixed
+- An alarm that NFM-T sent with severity `null` turned "NFM-T AGENT
+  STATUS" CRIT with "FETCH_ERROR: Agent Error [DATA_ERROR]: Failed to
+  process data", and no alarms or paths came through. Such an alarm now
+  counts as OK in "NFM-T Fault Manager Alarms" and "NFM-T System Alarms".
+- A connection path with alarm severity `null` made its "NFM-T Service"
+  turn UNKNOWN with a crash report. It now counts as cleared and shows OK.
 - A host named `test` got its NFM-T data from the files
   `/tmp/nfm_t_*.json` on the Checkmk server instead of from NFM-T. The
   special agent now always reads NFM-T, whatever the host is called.

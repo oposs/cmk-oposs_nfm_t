@@ -9,6 +9,7 @@ The last tests feed the agent output through the check plugin, so a format
 change on either side shows up here.
 """
 
+import ast
 import importlib.util
 import json
 import os
@@ -266,6 +267,24 @@ def test_capitalised_severities_sort_like_lower_case(agent, nfmt, capsys):
     assert [a["severity"] for a in json.loads(row[0])["alarms"]] == ["critical", "major", "minor"]
 
 
+def test_alarm_with_null_severity_counts_as_ok(agent, nfmt, capsys):
+    nfmt.answers["FaultManagement/rest/api/v2/alarms/details"] = {"response": {"data": [
+        {"neName": "OTN-ZH-01", "severity": None, "additionalText": "Card inserted in slot 4"},
+        {"neName": "OTN-ZH-01", "severity": "critical", "additionalText": "Loss of signal on 1/2/C1"},
+        {"neName": "MNC-FM", "severity": None, "additionalText": "Operator logged in"},
+    ]}}
+    _, out = _run(agent, capsys)
+    hosts = _sections(out)
+    (row,) = hosts["OTN-ZH-01"]["oposs_nfm_t_node"]
+    assert json.loads(row[0])["alarms"] == [
+        {"severity": "critical", "state": 2, "summary": "Loss of signal on 1/2/C1"},
+        {"severity": "ok", "state": 0, "summary": "Card inserted in slot 4"},
+    ]
+    (status,) = hosts[None]["oposs_nfm_t"]
+    assert json.loads(status[0])["unassigned_alarms"] == [
+        {"neName": "MNC-FM", "severity": "ok", "state": 0, "summary": "Operator logged in"}]
+
+
 def test_node_without_alarms_gets_a_placeholder(agent, nfmt, capsys):
     _, out = _run(agent, capsys)
     (row,) = _sections(out)["OTN-GE-03"]["oposs_nfm_t_node"]
@@ -463,6 +482,24 @@ def test_agent_is_executable_in_git():
                           capture_output=True, text=True, check=True).stdout.split()[0]
     assert mode == "100755"
     assert os.access(AGENT, os.X_OK)
+
+
+def test_agent_shebang():
+    # Checkmk executes the agent directly, so the kernel reads this line
+    assert AGENT.read_text().split("\n", 1)[0] == "#!/usr/bin/env python3"
+
+
+def test_agent_imports_are_used():
+    # ruff only checks *.py, so it never looks at the extensionless agent
+    tree = ast.parse(AGENT.read_text())
+    imported = set()
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            imported |= {(a.asname or a.name).split(".")[0] for a in node.names}
+        elif isinstance(node, ast.ImportFrom):
+            imported |= {a.asname or a.name for a in node.names}
+    used = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
+    assert imported - used == set()
 
 
 def test_no_legacy_plugin_files():

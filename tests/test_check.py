@@ -227,6 +227,20 @@ def test_alarm_with_garbage_state_uses_the_static_map(check):
     assert result == Result(state=State.CRIT, summary="x [critical]")
 
 
+def test_node_alarm_with_null_severity_is_ok(check):
+    alarm = {"severity": None, "summary": "Card inserted in slot 4"}
+    section = check.parse_oposs_nfm_t_node([_row({"alarms": [alarm]})])
+    assert _results(check.check_oposs_nfm_t_node("Fault Manager Alarms", section)) == [
+        Result(state=State.OK, summary="Card inserted in slot 4 [ok]")]
+
+
+def test_system_alarm_with_null_severity_is_ok(check):
+    alarm = {"neName": "MNC-FM", "severity": None, "summary": "Operator logged in"}
+    section = check.parse_oposs_nfm_t([_row({**AGENT_OK, "unassigned_alarms": [alarm]})])
+    assert _results(check.check_oposs_nfm_t("System Alarms", section)) == [
+        Result(state=State.OK, summary="[MNC-FM] Operator logged in [ok]")]
+
+
 @pytest.mark.parametrize("table", [[], [["garbage"]], [_row({"alarms": []})]],
                          ids=["empty", "garbage", "no-alarms"])
 def test_node_without_alarm_data(check, table):
@@ -262,6 +276,13 @@ def test_service_alarm_severity(check, severity, state):
     assert list(check.check_oposs_nfm_t_service("4711", {}, section)) == [
         Result(state=state,
                summary=f"ZH-BE 100G [100GbE] (1/2/C1 <-> 1/3/C1) - Raised [{severity.lower()}]")]
+
+
+def test_service_with_null_alarm_severity_is_ok(check):
+    path = {**PATH_UP, "alarmSeverity": None}
+    section = check.parse_oposs_nfm_t_service([_row(path)])
+    assert list(check.check_oposs_nfm_t_service("4711", {}, section)) == [
+        Result(state=State.OK, summary="ZH-BE 100G [100GbE] (1/2/C1 <-> 1/3/C1) - OK")]
 
 
 def test_service_not_up_is_unknown(check):

@@ -130,7 +130,7 @@ def check_oposs_nfm_t(item: str, section: Section) -> CheckResult:
         warning_count = 0
 
         for alarm in unassigned:
-            severity = alarm.get("severity", "ok").lower()
+            severity = (alarm.get("severity") or "ok").lower()
             ne_name = alarm.get("neName", "unknown")
             state = _alarm_state(alarm, severity)
 
@@ -208,7 +208,7 @@ def check_oposs_nfm_t_node(item: str, section: Section) -> CheckResult:
     warning_count = 0
 
     for alarm in alarms:
-        severity = alarm.get("severity", "ok").lower()
+        severity = (alarm.get("severity") or "ok").lower()
         state = _alarm_state(alarm, severity)
 
         if state != State.OK:
@@ -286,7 +286,7 @@ def check_oposs_nfm_t_service(item: str, params: Mapping[str, Any], section: Sec
         return
 
     operational_state = service.get("operationalState", "")
-    alarm_severity = service.get("alarmSeverity", "Cleared").lower()
+    alarm_severity = (service.get("alarmSeverity") or "Cleared").lower()
     gui_label = service.get("guiLabel", "")
     a_port = service.get("aPortLabel", "")
     z_port = service.get("zPortLabel", "")

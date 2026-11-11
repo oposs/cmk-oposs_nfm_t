@@ -1,5 +1,5 @@
-#!/usr/bin/env python3	
-# Copyright (C) 2025 OETIIKER+PARTNER AG – License: GNU General Public License v2
+#!/usr/bin/env python3
+# Copyright (C) 2025 OETIKER+PARTNER AG – License: GNU General Public License v2
 
 """
 Special agent for monitoring NFM-T managed Nodes Check_MK.
@@ -9,14 +9,11 @@ import argparse
 import logging
 import sys
 import traceback
-import os
 import json
 import base64
 import urllib.parse  # Use standard library's urllib.parse for URL encoding
 import requests
 from cmk.utils.password_store import replace_passwords
-from pprint import pprint
-import re
 from datetime import datetime
 import time
 import socket
@@ -438,7 +435,8 @@ class nfmTFetcher:
                 # central "System Alarms" service instead of being lost.
                 ne_name = alarm.get('neName') or alarm.get('neId') or 'NFM-T'
 
-                current_severity = alarm.get('severity', 'ok').lower()
+                # NFM-T may send "severity": null; treat it like a missing severity
+                current_severity = (alarm.get('severity') or 'ok').lower()
 
                 if ne_name not in node_alarms:
                     node_alarms[ne_name] = []
