@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### New
+
+### Changed
+
+### Fixed
+
+## 2.3.0 - 2026-11-11
+### New
 - The special agent `agent_oposs_nfm_t` carries the release version as
   well (`__version__`), like the check plugin.
 
