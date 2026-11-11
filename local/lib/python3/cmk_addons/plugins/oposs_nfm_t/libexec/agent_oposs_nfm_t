@@ -124,7 +124,6 @@ class nfmTFetcher:
     def __init__(self, hostaddress, username, password, max_retries=MAX_RETRIES, port=443, no_cert_check=False, severity_state=None) -> None:  # type:ignore[no-untyped-def]
         # Use the provided port in the endpoint
         self._endpoint = "https://%s:%d/" % (hostaddress, port)
-        self._testmode = hostaddress == "test"
         self._max_retries = max_retries
         self._headers = None
         self._access_token = None
@@ -133,11 +132,7 @@ class nfmTFetcher:
         self._verify_ssl = not no_cert_check
         # Fault-management severity -> Checkmk state integer
         self._severity_state = severity_state or dict(DEFAULT_SEVERITY_STATE)
-        
-        if self._testmode:
-            LOGGER.info("Running in test mode with host 'test'")
-            return
-        
+
         # Verify DNS resolution before attempting connection
         try:
             socket.gethostbyname(hostaddress)
@@ -214,8 +209,8 @@ class nfmTFetcher:
             
     def _revoke_token(self):
         """Revoke the access token when done"""
-        # Check if we're in test mode or if the token attribute doesn't exist or is None
-        if getattr(self, '_testmode', True) or self._access_token is None:
+        # __del__ also runs when __init__ failed before the token attribute was set
+        if getattr(self, '_access_token', None) is None:
             return
 
         # Correct endpoint path based on the documentation
@@ -261,24 +256,6 @@ class nfmTFetcher:
 
     def _make_api_request(self, method, endpoint, params=None):
         """Make API request with retry logic"""
-        if self._testmode:
-            # Map endpoints to specific test files
-            if endpoint.endswith("alarms/details"):
-                test_file = "/tmp/nfm_t_alarms.json"
-            elif endpoint.endswith("otn/node/"):
-                test_file = "/tmp/nfm_t_nodes.json"
-            elif endpoint.endswith("otn/connection/path"):
-                test_file = "/tmp/nfm_t_services.json"
-            else:
-                test_file = f"/tmp/nfm_t_{endpoint.split('/')[-1]}.json"
-                
-            LOGGER.debug(f"Test mode: Loading test data from {test_file}")
-            try:
-                return json.load(open(test_file))
-            except (FileNotFoundError, json.JSONDecodeError) as e:
-                LOGGER.error(f"Error loading test data: {e}")
-                raise NFMTDataError(f"Error loading test data from {test_file}: {e}")
-        
         if not self._headers:
             raise NFMTAuthenticationError("Not authenticated. Headers not initialized.")
         
@@ -331,10 +308,6 @@ class nfmTFetcher:
 
     def __fetch_alarms(self):
         try:
-            # In test mode, we don't need to build the filter
-            if self._testmode:
-                return self._make_api_request("GET", "FaultManagement/rest/api/v2/alarms/details")
-                
             severity_levels = ['critical', 'major', 'minor']
             alarm_filter = ' or '.join(f"severity='{level}'" for level in severity_levels)
             encoded_filter = urllib.parse.quote(alarm_filter)

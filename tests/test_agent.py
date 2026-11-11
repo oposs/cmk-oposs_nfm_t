@@ -280,15 +280,33 @@ def test_severity_mapping_reaches_the_alarms(agent, nfmt, capsys):
     assert [a["state"] for a in json.loads(status[0])["unassigned_alarms"]] == [3, 1]
 
 
-def test_warning_alarm_is_warn(agent):
-    fetcher = agent.nfmTFetcher("test", "u", "p")
+@pytest.fixture
+def fetcher(agent, nfmt):
+    fetcher = agent.nfmTFetcher("nfmt.example.net", "u", "p")
+    yield fetcher
+    # Revoke while requests is still patched, not later in __del__
+    fetcher._revoke_token()
+
+
+def test_warning_alarm_is_warn(agent, fetcher):
     assert fetcher._alarm_state("warning") == agent.CHECK_MK_WARN
 
 
-def test_cleared_alarm_is_ok(agent):
-    fetcher = agent.nfmTFetcher("test", "u", "p")
+def test_cleared_alarm_is_ok(agent, fetcher):
     assert fetcher._alarm_state("Cleared") == agent.CHECK_MK_OK
     assert fetcher._alarm_state(None) == agent.CHECK_MK_OK
+
+
+def test_host_named_test_is_read_from_nfmt(agent, nfmt, capsys):
+    # A Checkmk host called "test" once switched the agent to reading
+    # /tmp/nfm_t_*.json on the Checkmk server
+    with pytest.raises(SystemExit):
+        agent.main(["-u", "monitor", "-p", "secret", "test"])
+    assert [url for _, url, _ in nfmt][:2] == [
+        "https://test:443/rest-gateway/rest/api/v1/auth/token",
+        "https://test:443/FaultManagement/rest/api/v2/alarms/details",
+    ]
+    assert "OTN-ZH-01" in _sections(capsys.readouterr().out)
 
 
 # --- errors ----------------------------------------------------------------------
