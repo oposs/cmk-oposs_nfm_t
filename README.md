@@ -11,7 +11,6 @@ This extension pack contains a Checkmk special agent for monitoring Nokia NFM-T 
 - **Service monitoring**: Connection/path services mapped to endpoint nodes
 - System alarms (MNC-FM) displayed on the NFM-T host
 - Connection retry logic and comprehensive error handling
-- Historical metric data preservation via translations
 - Full Checkmk 2.4+ compatibility
 
 ## Requirements
@@ -118,10 +117,8 @@ local/lib/python3/cmk_addons/plugins/oposs_nfm_t/
 │   └── oposs_nfm_t.py                # Command builder
 ├── rulesets/
 │   └── oposs_nfm_t.py                # GUI configuration
-├── agent_based/
-│   └── oposs_nfm_t.py                # Check plugin
-└── graphing/
-    └── translations.py                # Metric translations
+└── agent_based/
+    └── oposs_nfm_t.py                # Check plugin
 ```
 
 ## Metrics
@@ -140,10 +137,9 @@ local/lib/python3/cmk_addons/plugins/oposs_nfm_t/
 
 Version 0.4.0 is a **breaking change** that requires Checkmk 2.4+. If upgrading from v0.3.0:
 
-1. Historical metric data is automatically preserved via translations
-2. Section name changed from `nfm_t` to `oposs_nfm_t` (handled automatically)
-3. Reconfigure the ruleset (password migration is automatic)
-4. Rediscover services on affected hosts
+1. Section name changed from `nfm_t` to `oposs_nfm_t` (handled automatically)
+2. Reconfigure the ruleset (password migration is automatic)
+3. Rediscover services on affected hosts
 
 ## License
 

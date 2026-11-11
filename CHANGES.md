@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   well (`__version__`), like the check plugin.
 
 ### Changed
+- The package no longer ships the metric translation
+  `graphing/translations.py`. It mapped the pre-1.0 metric `alarm_count`
+  for services that no longer exist, so no graph changes.
 
 ### Fixed
 - A host named `test` got its NFM-T data from the files
